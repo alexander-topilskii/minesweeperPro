@@ -74,22 +74,36 @@ function wire(g: Game) {
         const t = e.result;
         const p = cellScreen(t.origin.x, t.origin.y);
 
+        const calloutsHtml =
+          t.callouts && t.callouts.length
+            ? t.callouts
+                .slice(0, 2)
+                .map((c) => `<div class="callout-tag ${t.exploded ? 'alert' : ''}">${c}</div>`)
+                .join('')
+            : '';
+
         if (t.exploded) {
           sfx.boom();
           view.kick();
-          fx.burst(p.x, p.y, '💥 -1 HP', 'hurt');
+          if (t.comboBroken) sfx.breakCombo();
+          fx.burst(p.x, p.y, `${calloutsHtml}<span class="hurt-main">💥 -1 HP</span>`, 'hurt');
         }
         if (t.score > 0) {
           const big = t.score >= g.target * 0.25;
           fx.burst(
             p.x,
             p.y,
-            `+${t.score}<small>${t.data} × ${t.mult.toFixed(1)}</small>`,
+            `${calloutsHtml}<span class="score-main">+${t.score}</span><small>${t.data} × ${t.mult.toFixed(1)}</small>`,
             big ? 'score big' : 'score',
           );
         }
-        if (t.cells > 1) sfx.cascade(t.cells);
-        else if (t.cells === 1) sfx.click();
+        if (t.comboStreak >= 2) {
+          sfx.combo(t.comboStreak);
+        } else if (t.cells > 1) {
+          sfx.cascade(t.cells);
+        } else if (t.cells === 1 && !t.exploded) {
+          sfx.click();
+        }
         break;
       }
       case 'cleared':

@@ -114,7 +114,11 @@ export class Hud {
   private turnHtml(t?: TurnResult): string {
     if (!t) return `<div class="muted">Ожидание сканирования…</div>`;
     const x = t.xMult !== 1 ? ` <span class="x">×${fmt(t.xMult)}</span>` : '';
+    const callouts = t.callouts && t.callouts.length
+      ? `<div class="turn-callouts">${t.callouts.map((c) => `<span class="chip-callout">${c}</span>`).join('')}</div>`
+      : '';
     return `<div class="${t.exploded ? 'boom' : ''}">
+      ${callouts}
       <span class="chip data">${t.data}</span> × <span class="chip mult">${fmt(t.mult)}</span>${x}
       <div class="sum">= +${t.score}</div>
       <small>${t.cells} кл.${t.exploded ? ' · ПОДРЫВ' : ''}</small>

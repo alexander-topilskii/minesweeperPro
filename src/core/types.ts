@@ -9,6 +9,7 @@ export interface TurnContext {
   cascadeSteps: number;
   revealed: Cell[];
   exploded: boolean;
+  callouts: string[];
 }
 
 export interface MineHitEvent {

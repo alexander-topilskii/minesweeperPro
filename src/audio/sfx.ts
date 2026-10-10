@@ -28,6 +28,19 @@ export class Sfx {
     for (let i = 0; i < steps; i++) this.tone(220 * 2 ** (scale[i % scale.length] / 12 + Math.floor(i / scale.length)), i * 0.035);
   }
 
+  combo(streak: number) {
+    const scale = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
+    const semitone = scale[Math.min(streak, scale.length - 1)];
+    const freq = 392 * 2 ** (semitone / 12);
+    this.tone(freq, 0, 0.08, 'triangle', 0.08);
+    this.tone(freq * 1.5, 0.03, 0.1, 'sine', 0.06);
+  }
+
+  breakCombo() {
+    this.tone(180, 0, 0.15, 'sawtooth', 0.09);
+    this.tone(130, 0.06, 0.22, 'sawtooth', 0.09);
+  }
+
   click() {
     this.tone(880, 0, 0.03, 'square', 0.04);
   }

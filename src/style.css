@@ -307,6 +307,45 @@ legend { padding: 0 4px; }
   animation: float-drift 2.0s linear forwards;
 }
 
+/* Callout badge above the floating score or damage */
+.callout-tag {
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  color: #00ffcc;
+  text-shadow: 0 0 10px rgba(0, 255, 204, 0.9), 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+  -webkit-text-stroke: 0.5px #000;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+  line-height: 1.1;
+}
+.callout-tag.alert {
+  color: #ff3333;
+  text-shadow: 0 0 10px rgba(255, 50, 50, 0.9), 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+}
+
+/* Callouts in HUD Score Engine panel */
+.turn-callouts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-bottom: 4px;
+}
+.chip-callout {
+  font-size: 10px;
+  font-weight: bold;
+  padding: 1px 5px;
+  background: #000;
+  color: #00ffcc;
+  border: 1px solid #00bb99;
+  box-shadow: 0 0 4px rgba(0, 255, 204, 0.4);
+}
+.turn.boom .chip-callout {
+  color: #ff4444;
+  border-color: #aa0000;
+  box-shadow: 0 0 4px rgba(255, 68, 68, 0.4);
+}
+
 .float.banner {
   font-size: 44px; letter-spacing: 3px;
   animation: rise-big 1.8s cubic-bezier(.15, .8, .3, 1) forwards;

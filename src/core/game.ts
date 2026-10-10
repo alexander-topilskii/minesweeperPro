@@ -20,6 +20,9 @@ export interface TurnResult {
   cells: number;
   exploded: boolean;
   origin: { x: number; y: number };
+  callouts: string[];
+  comboStreak: number;
+  comboBroken: boolean;
 }
 
 export interface RoundSummary {
@@ -81,8 +84,16 @@ export class Game {
     for (const fn of this.listeners) fn(e);
   }
 
+  private currentTurnContext?: TurnContext;
+
   /** Called by modules to flash their slot in the UI. */
   fire(id: string): void {
+    if (this.currentTurnContext) {
+      const m = this.modules.find((mod) => mod.id === id);
+      if (m && !this.currentTurnContext.callouts.includes(m.name)) {
+        this.currentTurnContext.callouts.push(m.name);
+      }
+    }
     this.emit({ type: 'moduleFired', id });
   }
 
@@ -279,14 +290,17 @@ export class Game {
 
   private beginTurn(): TurnContext {
     this.clicks--;
-    return {
+    const ctx: TurnContext = {
       data: 0,
       mult: 1 + this.combo * CONFIG.comboMultStep + this.roundMult,
       xMult: 1,
       cascadeSteps: 0,
       revealed: [],
       exploded: false,
+      callouts: [],
     };
+    this.currentTurnContext = ctx;
+    return ctx;
   }
 
   openSafe(start: Cell, ctx: TurnContext): void {
@@ -302,7 +316,11 @@ export class Game {
         this.runHook('onReveal', (h) => h(this, ctx, c));
       }
     });
-    if (layers.length > 1) this.runHook('onCascade', (h) => h(this, ctx, layers.flat()));
+    if (layers.length > 1) {
+      const cascadeMult = (ctx.cascadeSteps * CONFIG.cascadeMultStep).toFixed(1);
+      ctx.callouts.push(`КАСКАД +${cascadeMult} Mult`);
+      this.runHook('onCascade', (h) => h(this, ctx, layers.flat()));
+    }
   }
 
   private hitMine(cell: Cell, ctx: TurnContext): void {
@@ -318,7 +336,29 @@ export class Game {
   private endTurn(ctx: TurnContext, origin: Cell): void {
     const score = Math.round(ctx.data * ctx.mult * ctx.xMult);
     this.score += score;
-    this.combo = ctx.exploded ? 0 : this.combo + 1;
+
+    const prevCombo = this.combo;
+    let comboBroken = false;
+    if (ctx.exploded) {
+      if (prevCombo >= 2) {
+        comboBroken = true;
+        ctx.callouts.unshift(`СЕРИЯ СБИТА! (-${(prevCombo * CONFIG.comboMultStep).toFixed(1)} Mult)`);
+      }
+      this.combo = 0;
+    } else {
+      this.combo = prevCombo + 1;
+      if (this.combo >= 2) {
+        const bonusStr = (this.combo * CONFIG.comboMultStep).toFixed(1);
+        const title =
+          this.combo >= 8
+            ? `⚡ ${this.combo} В РЯД! (+${bonusStr} Mult)`
+            : this.combo >= 5
+              ? `🔥 ${this.combo} В РЯД! (+${bonusStr} Mult)`
+              : `${this.combo} В РЯД! (+${bonusStr} Mult)`;
+        ctx.callouts.unshift(title);
+      }
+    }
+
     this.lastTurn = {
       data: ctx.data,
       mult: ctx.mult,
@@ -327,7 +367,11 @@ export class Game {
       cells: ctx.revealed.length,
       exploded: ctx.exploded,
       origin: { x: origin.x, y: origin.y },
+      callouts: ctx.callouts,
+      comboStreak: this.combo,
+      comboBroken,
     };
+    this.currentTurnContext = undefined;
     this.emit({ type: 'turn', result: this.lastTurn });
     if (!this.cleared && this.score >= this.target) {
       this.cleared = true;
