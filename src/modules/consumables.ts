@@ -5,8 +5,10 @@ export const CONSUMABLES: ConsumableDef[] = [
     id: 'CON-SLOT',
     name: 'Флаг-Слот 🎰',
     nameEn: 'Slot Flag',
-    description: 'Устанавливает на закрытую клетку флаг-игровой автомат. Наберите 3 слота для запуска джекпота!',
+    description: 'Комплект из 3 флагов-слотов. Установите 3 слота на мины для запуска джекпота 7-7-7!',
     cost: 3,
+    charges: 3,
+    maxCharges: 3,
     targetType: 'cell',
     use(_game, cell) {
       if (!cell || cell.revealed || cell.slotFlag) return false;

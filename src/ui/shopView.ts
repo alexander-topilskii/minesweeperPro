@@ -138,7 +138,7 @@ export class ShopView {
       const sellPrice = sellValue(c.cost);
       return `<div class="inv-slot bevel-out">
         <div class="inv-info">
-          <b>${c.name}</b>
+          <b>${c.name} ${c.maxCharges ? `(${c.charges ?? c.maxCharges}/${c.maxCharges})` : ''}</b>
           <small>${c.description}</small>
         </div>
         <button class="btn bevel-out btn-sell" data-sell-con="${i}">ПРОДАТЬ (+${sellPrice})</button>
@@ -171,10 +171,10 @@ export class ShopView {
     return `
       <div class="card bevel-out consumable">
         <div class="card-head">
-          <span class="badge consumable">РАСХОДНИК</span>
+          <span class="badge consumable">РАСХОДНИК ${c.maxCharges ? `(${c.maxCharges} ШТ)` : ''}</span>
           <span class="badge type">${c.targetType === 'cell' ? 'ПРИЦЕЛ' : 'МГНОВЕННЫЙ'}</span>
         </div>
-        <div class="card-name">${c.name}</div>
+        <div class="card-name">${c.name} ${c.maxCharges ? `(${c.maxCharges} шт)` : ''}</div>
         <div class="card-name-en">${c.nameEn}</div>
         <div class="card-desc">${c.description}</div>
         <button class="btn bevel-out btn-buy" data-buy-con="${c.id}" ${canAfford ? '' : 'disabled'}>

@@ -109,7 +109,7 @@ export class Hud {
     document.body.classList.toggle('cleared', g.cleared);
 
     $('turn').innerHTML = this.turnHtml(g.lastTurn);
-    $('hull').innerHTML = Array.from({ length: CONFIG.hull }, (_, i) => `<i class="${i < g.hull ? 'on' : ''}"></i>`).join('');
+    $('hull').innerHTML = Array.from({ length: g.maxHull }, (_, i) => `<i class="${i < g.hull ? 'on' : ''}"></i>`).join('');
     $('combo').textContent = `${g.combo}  (+${fmt(g.combo * CONFIG.comboMultStep)})`;
     $('bits').textContent = String(g.bits);
 
@@ -118,10 +118,19 @@ export class Hud {
       const c = g.consumables[i];
       if (!c) return `<div class="con-slot empty">пусто</div>`;
       const isPrimed = g.activeConsumableIdx === i;
+      const charges = c.charges ?? 1;
+      const maxCharges = c.maxCharges ?? 1;
       return `
         <button class="con-slot bevel-out ${isPrimed ? 'primed' : ''}" data-con-idx="${i}" title="${c.description}">
-          <b>${c.name}</b>
-          <small>${isPrimed ? '⚡ КЛИКНИТЕ КЛЕТКУ' : c.targetType === 'cell' ? '🎯 ПРИЦЕЛ' : '⚡ АКТИВИРОВАТЬ'}</small>
+          <div class="con-name">${c.name}</div>
+          ${maxCharges > 1 ? `
+          <div class="con-charges-row">
+            <div class="con-pips">
+              ${Array.from({ length: maxCharges }, (_, pi) => `<i class="pip ${pi < charges ? 'on' : 'off'}"></i>`).join('')}
+            </div>
+            <span class="con-charges-val">${charges}/${maxCharges}</span>
+          </div>` : ''}
+          <small class="con-state">${isPrimed ? '⚡ КЛИКНИТЕ КЛЕТКУ' : c.targetType === 'cell' ? '🎯 ПРИЦЕЛ' : '⚡ АКТИВИРОВАТЬ'}</small>
         </button>
       `;
     }).join('');
@@ -142,7 +151,8 @@ export class Hud {
       $('status-hint').textContent = '🛒 Торговый пост: покупайте Флаги-Слоты 🎰 за Bits · Нажмите «В БОЙ ▶» для старта';
     } else if (g.activeConsumableIdx !== undefined) {
       const con = g.consumables[g.activeConsumableIdx];
-      $('status-hint').textContent = `🎯 [РЕЖИМ ПРИЦЕЛА]: Кликните ПКМ/ЛКМ по закрытой клетке, чтобы поставить «${con?.name}»`;
+      const leftStr = con?.charges !== undefined ? ` (${con.charges} в запасе)` : '';
+      $('status-hint').textContent = `🎯 [РЕЖИМ ПРИЦЕЛА]: Кликните ЛКМ/ПКМ по закрытой клетке для установки «${con?.name}»${leftStr}`;
     } else if (g.cleared && g.status === 'playing') {
       $('status-hint').textContent = '😎 Цель выполнена! Нажмите «ПРОДОЛЖИТЬ» для перехода в магазин или набивайте Overcharge';
     } else {

@@ -21,6 +21,7 @@ const view = new BoardView(boardEl, (x, y, action) => {
     checkSlotAutoRoll();
   } else {
     game.click(x, y);
+    checkSlotAutoRoll();
   }
 });
 

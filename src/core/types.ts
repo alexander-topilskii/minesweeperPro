@@ -48,5 +48,7 @@ export interface ConsumableDef {
   description: string;
   cost: number;
   targetType: 'instant' | 'cell';
+  charges?: number;
+  maxCharges?: number;
   use(game: Game, targetCell?: Cell): boolean;
 }

@@ -275,6 +275,16 @@ export const MODULES: ModuleDef[] = [
       },
     },
   },
+  {
+    id: 'MOD-HAZ-HP',
+    name: 'Бронекапсула (+1 HP)',
+    nameEn: 'Armor Plating (+1 HP)',
+    description: '+1 к максимальному запасу жизней (HP). Позволяет пережить ещё один подрыв.',
+    category: 'HAZ',
+    rarity: 'uncommon',
+    cost: 5,
+    hooks: {},
+  },
 
   // --- ECO: Economy & Utility ---
   {

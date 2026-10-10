@@ -1,8 +1,8 @@
 import { Board, type Cell } from './board';
 import { CONFIG, cashoutMultiplier, cashoutScore, minesFor, targetFor } from '../config';
 import type { ConsumableDef, ModuleDef, ModuleHooks, TurnContext } from './types';
-import { sellValue } from '../modules/registry';
-import { CONSUMABLES } from '../modules/consumables';
+import { getModule, sellValue } from '../modules/registry';
+import { getConsumable } from '../modules/consumables';
 
 /**
  * playing — round in progress (target may already be reached — see `cleared`)
@@ -103,6 +103,11 @@ export class Game {
     this.emit({ type: 'moduleFired', id });
   }
 
+  get maxHull(): number {
+    const extraHp = this.modules.filter((m) => m.id === 'MOD-HAZ-HP').length;
+    return CONFIG.hull + extraHp;
+  }
+
   get sector(): number {
     return Math.floor(this.stage / 3) + 1;
   }
@@ -117,7 +122,7 @@ export class Game {
     this.score = 0;
     this.target = targetFor(stage);
     this.clicks = CONFIG.clicks;
-    this.hull = CONFIG.hull;
+    this.hull = this.maxHull;
     this.combo = 0;
     this.roundMult = 0;
     this.cleared = false;
@@ -150,11 +155,13 @@ export class Game {
   // ---------- Shop Operations ----------
 
   generateShop(): void {
-    // Only offer Slot Machine Flags in shop (player gathers slot flags)
-    const slotDef = CONSUMABLES.find((c) => c.id === 'CON-SLOT')!;
+    const slotDef = getConsumable('CON-SLOT');
+    const hpMod = getModule('MOD-HAZ-HP');
+    const hpCount = this.modules.filter((m) => m.id === 'MOD-HAZ-HP').length;
+
     this.shopOffers = {
-      modules: [],
-      consumables: [slotDef],
+      modules: hpCount < 2 ? [{ ...hpMod }] : [],
+      consumables: [{ ...slotDef }],
     };
   }
 
@@ -172,6 +179,9 @@ export class Game {
     if (this.bits < m.cost) return false;
     this.bits -= m.cost;
     this.modules.push(m);
+    if (m.id === 'MOD-HAZ-HP') {
+      this.hull += 1;
+    }
     this.shopOffers.modules = this.shopOffers.modules.filter((item) => item.id !== m.id);
     this.emit({ type: 'change' });
     return true;
@@ -181,6 +191,9 @@ export class Game {
     if (index < 0 || index >= this.modules.length) return false;
     const [mod] = this.modules.splice(index, 1);
     this.bits += sellValue(mod.cost);
+    if (mod.id === 'MOD-HAZ-HP') {
+      this.hull = Math.min(this.hull, this.maxHull);
+    }
     this.emit({ type: 'change' });
     return true;
   }
@@ -189,7 +202,12 @@ export class Game {
     if (this.consumables.length >= CONFIG.consumableSlots) return false;
     if (this.bits < c.cost) return false;
     this.bits -= c.cost;
-    this.consumables.push(c);
+    const cloned: ConsumableDef = {
+      ...c,
+      charges: c.charges ?? c.maxCharges ?? 1,
+      maxCharges: c.maxCharges ?? c.charges ?? 1,
+    };
+    this.consumables.push(cloned);
     this.shopOffers.consumables = this.shopOffers.consumables.filter((item) => item.id !== c.id);
     this.emit({ type: 'change' });
     return true;
@@ -221,8 +239,19 @@ export class Game {
 
     const success = c.use(this, cell);
     if (success) {
-      this.consumables.splice(index, 1);
-      this.activeConsumableIdx = undefined;
+      if (c.charges !== undefined) {
+        c.charges--;
+        if (c.charges <= 0) {
+          this.consumables.splice(index, 1);
+          this.activeConsumableIdx = undefined;
+        } else {
+          // Keep activeConsumableIdx active so the player can place the next flag without re-clicking!
+          this.activeConsumableIdx = index;
+        }
+      } else {
+        this.consumables.splice(index, 1);
+        this.activeConsumableIdx = undefined;
+      }
       this.emit({ type: 'change' });
     }
     return success;
@@ -235,6 +264,32 @@ export class Game {
     }
   }
 
+  /** Refunds +1 charge of CON-SLOT when a placed slot-flag is removed from the board */
+  refundSlotCharge(): void {
+    const slotCon = this.consumables.find((c) => c.id === 'CON-SLOT');
+    if (slotCon) {
+      if (slotCon.charges !== undefined) {
+        const max = slotCon.maxCharges ?? 3;
+        slotCon.charges = Math.min(max, slotCon.charges + 1);
+      }
+    } else {
+      const def = getConsumable('CON-SLOT');
+      const item: ConsumableDef = {
+        ...def,
+        charges: 1,
+        maxCharges: def.maxCharges ?? 3,
+      };
+      this.consumables.push(item);
+    }
+    this.emit({ type: 'change' });
+  }
+
+  removeSlotFlag(cell: Cell): void {
+    if (!cell.slotFlag) return;
+    cell.slotFlag = false;
+    this.refundSlotCharge();
+  }
+
   // ---------- Player Actions ----------
 
   click(x: number, y: number): void {
@@ -243,6 +298,12 @@ export class Game {
 
     // If consumable targeting mode is active:
     if (this.activeConsumableIdx !== undefined) {
+      const activeCon = this.consumables[this.activeConsumableIdx];
+      if (activeCon && activeCon.id === 'CON-SLOT' && cell.slotFlag) {
+        // Clicking an existing slot flag unflags it and refunds charge
+        this.removeSlotFlag(cell);
+        return;
+      }
       this.useConsumable(this.activeConsumableIdx, cell);
       return;
     }
@@ -257,6 +318,12 @@ export class Game {
     const cell = this.board.get(x, y);
     if (!cell || this.status !== 'playing' || cell.revealed) return;
 
+    // If cell already has slotFlag, remove it and refund charge
+    if (cell.slotFlag) {
+      this.removeSlotFlag(cell);
+      return;
+    }
+
     // If CON-SLOT consumable is currently primed/active:
     if (this.activeConsumableIdx !== undefined) {
       const activeCon = this.consumables[this.activeConsumableIdx];
@@ -265,13 +332,6 @@ export class Game {
         return;
       }
       this.cancelTargetMode();
-      return;
-    }
-
-    // If cell already has slotFlag, remove it on right click
-    if (cell.slotFlag) {
-      cell.slotFlag = false;
-      this.emit({ type: 'change' });
       return;
     }
 
@@ -598,6 +658,13 @@ export class Game {
     const correctFlags = this.board.cells.filter((c) => c.flagged && c.mine).length;
     this.score += correctFlags * CONFIG.flagRoundEndData;
     this.runHook('onRoundEnd', (h) => h(this));
+
+    // Return any un-rolled slot flags remaining on board to consumable inventory
+    const lingeringSlotFlags = this.board.cells.filter((c) => c.slotFlag).length;
+    for (let i = 0; i < lingeringSlotFlags; i++) {
+      this.refundSlotCharge();
+    }
+
     const overcharge = Math.floor((this.score - this.target) / (this.target * CONFIG.overchargeBitStep));
     const bitsEarned = CONFIG.bitsPerWin + this.clicks * CONFIG.bitsPerClickLeft + Math.max(0, overcharge);
     this.bits += bitsEarned;
