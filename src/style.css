@@ -76,6 +76,14 @@ body {
 .lcd.wide::before { content: '888888'; }
 .lcd.low { animation: blink 0.6s steps(2) infinite; }
 .lcd.rolling { color: #ff5a00; }
+.lcd.bump {
+  animation: lcd-absorb 0.35s ease-out;
+}
+@keyframes lcd-absorb {
+  0% { transform: scale(1); filter: brightness(1); }
+  30% { transform: scale(1.08); filter: brightness(1.7) drop-shadow(0 0 10px rgba(255, 60, 0, 0.9)); color: #ffdd44; }
+  100% { transform: scale(1); filter: brightness(1); }
+}
 @keyframes blink { 50% { opacity: 0.35; } }
 
 .smiley { width: 40px; height: 40px; font-size: 24px; padding: 0; cursor: pointer; line-height: 1; }

@@ -147,11 +147,13 @@ function wire(g: Game) {
         }
         if (t.score > 0) {
           const big = t.score >= g.target * 0.25;
+          const lcdScoreEl = document.getElementById('lcd-score');
           fx.burst(
             p.x,
             p.y,
             `<span class="score-main">+${t.score}</span><small>${t.data} × ${t.mult.toFixed(1)}</small>`,
             big ? 'score big' : 'score',
+            lcdScoreEl,
           );
         }
 
