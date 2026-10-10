@@ -1,5 +1,5 @@
 import { Board, type Cell } from './board';
-import { CONFIG, minesFor, targetFor } from '../config';
+import { CONFIG, cashoutMultiplier, cashoutScore, minesFor, targetFor } from '../config';
 import type { ConsumableDef, ModuleDef, ModuleHooks, TurnContext } from './types';
 import { MODULES, sellValue } from '../modules/registry';
 import { CONSUMABLES } from '../modules/consumables';
@@ -54,6 +54,8 @@ export class Game {
   cleared = false;
   status: RoundStatus = 'playing';
   lastTurn?: TurnResult;
+  /** True while the sequential cashout lever validation roll is active. */
+  isCashoutRolling = false;
   /** Per-round scratch state for modules, keyed by module id. */
   roundState: Record<string, unknown> = {};
 
@@ -118,6 +120,7 @@ export class Game {
     this.activeConsumableIdx = undefined;
     this.roundState = {};
     this.lastTurn = undefined;
+    this.isCashoutRolling = false;
     this.status = 'playing';
     this.runHook('onRoundStart', (h) => h(this));
     this.emit({ type: 'newBoard' });
@@ -239,7 +242,7 @@ export class Game {
 
   click(x: number, y: number): void {
     const cell = this.board.get(x, y);
-    if (!cell || this.status !== 'playing') return;
+    if (!cell || this.status !== 'playing' || this.isCashoutRolling) return;
 
     // If consumable targeting mode is active:
     if (this.activeConsumableIdx !== undefined) {
@@ -253,6 +256,7 @@ export class Game {
   }
 
   toggleFlag(x: number, y: number): void {
+    if (this.isCashoutRolling) return;
     if (this.activeConsumableIdx !== undefined) {
       this.cancelTargetMode();
       return;
@@ -261,6 +265,95 @@ export class Game {
     if (!cell || this.status !== 'playing' || cell.revealed) return;
     cell.flagged = !cell.flagged;
     this.emit({ type: 'change' });
+  }
+
+  getCashoutInfo(): { count: number; mult: number; potScore: number } {
+    const count = this.board.cells.filter((c) => c.flagged).length;
+    const mult = cashoutMultiplier(count);
+    const potScore = cashoutScore(count, this.combo);
+    return { count, mult, potScore };
+  }
+
+  /** Arms the detonator and returns the array of flagged cells to validate */
+  startCashout(): Cell[] | null {
+    if (this.status !== 'playing' || this.isCashoutRolling) return null;
+    const flags = this.board.cells.filter((c) => c.flagged);
+    if (!flags.length) return null;
+
+    // If turn 0 with no cells revealed, generate board with mines
+    if (!this.board.generated) {
+      const safe = this.board.cells.find((c) => !c.flagged) || flags[0];
+      this.board.generate(safe);
+    }
+
+    this.isCashoutRolling = true;
+    this.emit({ type: 'change' });
+    return flags;
+  }
+
+  /** Resolves false flag penalty: 1 HP lost, combo reset to 0 */
+  resolveCashoutBust(faultCell: Cell): void {
+    faultCell.flagged = false;
+    faultCell.revealed = true;
+    faultCell.wrong = true;
+    this.hull--;
+    this.combo = 0;
+    this.isCashoutRolling = false;
+    if (this.hull <= 0) {
+      this.status = 'lost';
+    }
+    this.emit({ type: 'change' });
+  }
+
+  /** Resolves jackpot win: defuses all mines, updates adjacents, opens safe neighbors, awards score & bits */
+  resolveCashoutJackpot(flaggedCells: Cell[]): { score: number; mult: number; count: number } {
+    const mult = cashoutMultiplier(flaggedCells.length);
+    const score = cashoutScore(flaggedCells.length, this.combo);
+
+    for (const c of flaggedCells) {
+      c.mine = false;
+      c.flagged = false;
+      c.revealed = true;
+      c.defused = true;
+    }
+
+    // Update numbers on adjacent cells
+    this.board.recomputeAdjacents();
+
+    // Safely reveal / cascade safe cells around detonation points
+    for (const m of flaggedCells) {
+      for (const n of this.board.neighbors(m)) {
+        if (!n.revealed && !n.mine && !n.flagged) {
+          const layers = this.board.flood(n);
+          if (layers.length) {
+            for (const layer of layers) {
+              for (const c of layer) c.revealed = true;
+            }
+          } else {
+            n.revealed = true;
+          }
+        }
+      }
+    }
+
+    this.score += score;
+    this.combo += flaggedCells.length;
+
+    // Bonus bits for daring gambles
+    if (flaggedCells.length >= 6) this.bits += 2;
+    else if (flaggedCells.length >= 3) this.bits += 1;
+
+    if (this.score >= this.target) {
+      this.cleared = true;
+      this.emit({ type: 'cleared' });
+    }
+    if (this.board.safeRemaining() === 0) {
+      this.cleared = true;
+    }
+
+    this.isCashoutRolling = false;
+    this.emit({ type: 'change' });
+    return { score, mult, count: flaggedCells.length };
   }
 
   private reveal(cell: Cell): void {

@@ -1,4 +1,5 @@
 import { Game } from './core/game';
+import type { Cell } from './core/board';
 import { getModule } from './modules/registry';
 import { BoardView } from './render/boardView';
 import { Hud } from './ui/hud';
@@ -41,6 +42,67 @@ const restart = () => {
   shopView.render();
 };
 
+const pullLever = async () => {
+  const flags = game.startCashout();
+  if (!flags || !flags.length) return;
+
+  sfx.leverPull();
+  view.locked = true;
+  hud.setLeverAnimation('pull');
+
+  let failedCell: Cell | null = null;
+
+  for (let i = 0; i < flags.length; i++) {
+    const c = flags[i];
+    view.setCheckingCell(c);
+    sfx.rollTick(i);
+
+    // Suspense rhythm
+    await new Promise((r) => setTimeout(r, 340));
+
+    if (c.mine) {
+      sfx.flagConfirmed(i);
+      const p = cellScreen(c.x, c.y);
+      fx.burst(p.x, p.y, `<span class="score-main" style="color:#00ff88;font-size:18px;">⚡ МИНА!</span>`, 'score');
+    } else {
+      failedCell = c;
+      break;
+    }
+  }
+
+  view.setCheckingCell(undefined);
+
+  if (failedCell) {
+    // BUST
+    sfx.buzzer();
+    view.kick(0.6);
+    hud.setLeverAnimation('bust');
+    const p = cellScreen(failedCell.x, failedCell.y);
+    fx.burst(p.x, p.y, `<span class="hurt-main">💥 ОСЕЧКА! -1 HP</span>`, 'hurt');
+    game.resolveCashoutBust(failedCell);
+    view.sync();
+    view.locked = false;
+    hud.showBonus([`💥 ОСЕЧКА! ЛОЖНЫЙ ФЛАГ`, `СЕРИЯ СБИТА (-1 HP)`], true);
+    hud.render();
+  } else {
+    // JACKPOT!
+    sfx.jackpotFanfare();
+    view.kick(0.35);
+    hud.setLeverAnimation('jackpot');
+
+    const result = game.resolveCashoutJackpot(flags);
+    view.build(game.board);
+    view.locked = false;
+
+    fx.banner(boardEl, `🎰 ДЖЕКПОТ! +${result.score}`, 'rainbow');
+    hud.showBonus([
+      `🎰 ДЖЕКПОТ! ×${result.mult.toFixed(1)} (+${result.score} PTS)`,
+      `⚡ ${result.count} МИН ОБЕЗВРЕЖЕНО!`,
+    ], false);
+    hud.render();
+  }
+};
+
 const hud = new Hud(game, {
   smiley: () => {
     if (game.status === 'lost' || game.status === 'victory') restart();
@@ -54,6 +116,9 @@ const hud = new Hud(game, {
     } else {
       sfx.click();
     }
+  },
+  onPullLever: () => {
+    void pullLever();
   },
 });
 

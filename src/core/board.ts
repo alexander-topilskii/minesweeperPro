@@ -6,6 +6,8 @@ export interface Cell {
   revealed: boolean;
   flagged: boolean;
   exploded: boolean;
+  defused?: boolean;
+  wrong?: boolean;
 }
 
 /** Pure grid logic: generation, neighbours, flood fill. No scoring here. */
@@ -80,5 +82,12 @@ export class Board {
 
   safeRemaining(): number {
     return this.cells.filter((c) => !c.mine && !c.revealed).length;
+  }
+
+  /** Recomputes numbers after a mine is defused/neutralized. */
+  recomputeAdjacents(): void {
+    for (const c of this.cells) {
+      c.adjacent = this.neighbors(c).filter((n) => n.mine).length;
+    }
   }
 }

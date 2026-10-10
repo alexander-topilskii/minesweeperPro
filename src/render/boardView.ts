@@ -8,7 +8,7 @@ const SHADOW = '#808080';
 const NUM_COLORS = ['', '#0000ff', '#008000', '#ff0000', '#000080', '#800000', '#008080', '#000000', '#808080'];
 const TEX = 32; // low-res + nearest filter = crisp pixel look
 
-type TileKind = 'hidden' | 'hover' | 'pressed' | 'flag' | 'mine' | 'exploded' | 'wrongFlag' | `n${number}`;
+type TileKind = 'hidden' | 'hover' | 'pressed' | 'flag' | 'mine' | 'exploded' | 'wrongFlag' | 'defused' | 'checking' | `n${number}`;
 
 function makeTexture(draw: (ctx: CanvasRenderingContext2D, s: number) => void): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
@@ -87,6 +87,36 @@ function mine(ctx: CanvasRenderingContext2D, s: number) {
   ctx.fillRect(c - 2.2 * u, c - 2.2 * u, 1.6 * u, 1.6 * u);
 }
 
+function defusedMine(ctx: CanvasRenderingContext2D, s: number) {
+  const u = s / 16;
+  const c = s / 2;
+  // Neutralized dark mine body
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(c, c, 4.2 * u, 0, Math.PI * 2);
+  ctx.fill();
+  // Bright neon checkmark spark
+  ctx.strokeStyle = '#00ff88';
+  ctx.lineWidth = 2 * u;
+  ctx.beginPath();
+  ctx.moveTo(c - 2.5 * u, c);
+  ctx.lineTo(c - 0.5 * u, c + 2.2 * u);
+  ctx.lineTo(c + 2.8 * u, c - 2 * u);
+  ctx.stroke();
+}
+
+function wrongFlag(ctx: CanvasRenderingContext2D, s: number) {
+  flag(ctx, s);
+  ctx.strokeStyle = '#ff0000';
+  ctx.lineWidth = Math.max(2, s / 8);
+  ctx.beginPath();
+  ctx.moveTo(2, 2);
+  ctx.lineTo(s - 2, s - 2);
+  ctx.moveTo(s - 2, 2);
+  ctx.lineTo(2, s - 2);
+  ctx.stroke();
+}
+
 function buildMaterials(): Record<TileKind, THREE.MeshBasicMaterial> {
   const mk = (draw: (c: CanvasRenderingContext2D, s: number) => void) =>
     new THREE.MeshBasicMaterial({ map: makeTexture(draw) });
@@ -97,6 +127,15 @@ function buildMaterials(): Record<TileKind, THREE.MeshBasicMaterial> {
     flag: mk((c, s) => (raised(c, s), flag(c, s))),
     mine: mk((c, s) => (sunken(c, s), mine(c, s))),
     exploded: mk((c, s) => (sunken(c, s, '#ff0000'), mine(c, s))),
+    defused: mk((c, s) => (sunken(c, s, '#0d2818'), defusedMine(c, s))),
+    wrongFlag: mk((c, s) => (sunken(c, s, '#ffebeb'), wrongFlag(c, s))),
+    checking: mk((c, s) => {
+      raised(c, s, '#fffae0');
+      flag(c, s);
+      c.strokeStyle = '#ffaa00';
+      c.lineWidth = 2;
+      c.strokeRect(1, 1, s - 2, s - 2);
+    }),
   };
   for (let n = 0; n <= 8; n++) mats[`n${n}`] = mk((c, s) => (sunken(c, s), n && digit(c, s, n)));
   return mats as Record<TileKind, THREE.MeshBasicMaterial>;
@@ -121,6 +160,18 @@ export class BoardView {
   private shake = 0;
   private time = 0;
   private longPress?: number;
+  private checkingCell?: Cell;
+  public locked = false;
+
+  setCheckingCell(c?: Cell): void {
+    this.checkingCell = c;
+    if (c && this.board) {
+      const idx = c.y * this.board.w + c.x;
+      const mesh = this.meshes[idx];
+      if (mesh) this.pop.set(mesh, 0);
+    }
+    this.sync();
+  }
 
   constructor(
     private container: HTMLElement,
@@ -207,7 +258,10 @@ export class BoardView {
   }
 
   private kindOf(c: Cell): TileKind {
+    if (c === this.checkingCell) return 'checking';
     if (c.exploded) return 'exploded';
+    if (c.defused) return 'defused';
+    if (c.wrong) return 'wrongFlag';
     if (c.revealed) return c.mine ? 'mine' : `n${c.adjacent}`;
     if (c.flagged) return 'flag';
     if (c === this.pressed) return 'pressed';
@@ -269,6 +323,7 @@ export class BoardView {
   }
 
   private act(c: Cell, action: 'reveal' | 'flag') {
+    if (this.locked) return;
     this.origin = { x: c.x, y: c.y };
     this.onAction(c.x, c.y, action);
   }

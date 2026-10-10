@@ -95,9 +95,228 @@ body.cleared .target i {
 }
 @keyframes flow { to { background-position: -200% 0; } }
 
+.board-stage {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 142px;
+  gap: 6px;
+}
 .board-frame { flex: 1; min-height: 0; border-width: 3px; background: var(--face); }
 #board { width: 100%; height: 100%; position: relative; }
 #board canvas { display: block; width: 100%; height: 100%; cursor: default; }
+
+/* ===== Massive Mechanical Cashout Lever Chassis ===== */
+.lever-chassis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 5px;
+  padding: 5px 6px;
+  background: #c2c2c2;
+  border-width: 3px;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+}
+.chassis-hazard {
+  height: 6px;
+  background: repeating-linear-gradient(-45deg, #ffd700 0 6px, #000 6px 12px);
+  border: 1px solid #000;
+}
+.chassis-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--shadow);
+  padding-bottom: 3px;
+}
+.chassis-title {
+  font: bold 11px/1 'Courier New', monospace;
+  letter-spacing: 1px;
+  color: #111;
+}
+.lamp-housing {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.lamp {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #444;
+  border: 1px solid #000;
+  box-shadow: inset 1px 1px 2px rgba(255, 255, 255, 0.4);
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.lamp.armed {
+  background: #ffb700;
+  box-shadow: 0 0 8px #ffb700, 0 0 16px #ff7700;
+  animation: lamp-pulse 0.7s infinite alternate ease-in-out;
+}
+.lamp.rolling {
+  background: #ff2200;
+  box-shadow: 0 0 10px #ff2200, 0 0 20px #ff0000;
+  animation: lamp-strobe 0.2s infinite alternate;
+}
+.lamp.jackpot {
+  background: #00ff88;
+  box-shadow: 0 0 12px #00ff88, 0 0 24px #00ffcc;
+}
+.lamp.bust {
+  background: #ff0000;
+  box-shadow: 0 0 12px #ff0000;
+}
+@keyframes lamp-pulse {
+  from { filter: brightness(0.9); }
+  to { filter: brightness(1.4); }
+}
+@keyframes lamp-strobe {
+  from { opacity: 0.35; }
+  to { opacity: 1; }
+}
+.lamp-status {
+  font: bold 9px/1 'Courier New', monospace;
+  color: #333;
+}
+
+/* Mechanical Vertical Slot & Throw Handle */
+.lever-slot {
+  flex: 1;
+  min-height: 110px;
+  background: #181818;
+  border-width: 2px;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+  padding: 6px 0;
+}
+.lever-track {
+  width: 32px;
+  height: 100%;
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+.lever-rail {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 7px;
+  background: linear-gradient(90deg, #333, #888, #222);
+  border: 1px solid #111;
+  border-radius: 4px;
+}
+.lever-handle {
+  position: absolute;
+  top: 4px;
+  width: 38px;
+  height: 50px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translateY(0);
+  transition: transform 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  outline: none;
+}
+.lever-handle:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.lever-shaft {
+  width: 7px;
+  height: 22px;
+  background: linear-gradient(90deg, #999, #fff, #555);
+  border: 1px solid #222;
+  box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6);
+}
+.lever-knob {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ff5555, #cc0000 65%, #660000 100%);
+  border: 2px solid #222;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.7), inset 0 2px 4px rgba(255, 255, 255, 0.6);
+  position: relative;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+.lever-handle:not(:disabled):hover .lever-knob {
+  transform: scale(1.08);
+  box-shadow: 0 0 12px rgba(255, 100, 0, 0.8), 0 4px 8px rgba(0, 0, 0, 0.8);
+}
+.lever-handle.pulled {
+  transform: translateY(64px);
+  transition: transform 0.14s cubic-bezier(0.12, 1, 0.3, 1);
+}
+
+/* Digital Readouts */
+.lever-readouts {
+  background: #000;
+  padding: 3px 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font: bold 11px/1.2 'Courier New', monospace;
+  border-width: 2px;
+}
+.readout-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.readout-row .lbl { color: #888; font-size: 9px; }
+.readout-row .val { color: #00ffcc; text-shadow: 0 0 6px #00ffcc; }
+.readout-row .val.mult { color: #ffcc00; text-shadow: 0 0 6px #ffcc00; }
+.readout-row.total .lbl { color: #fff; font-size: 10px; }
+.readout-row.total .val.pot { color: #fff; font-size: 12px; text-shadow: 0 0 8px #ffd700, 0 0 14px #ff8800; }
+
+/* Big Slam Button */
+.btn-slam {
+  font: bold 11px/1 'Courier New', monospace;
+  padding: 6px;
+  background: #c82333;
+  color: #fff;
+  border-width: 2px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  text-shadow: 1px 1px 0 #000;
+  box-shadow: inset 1px 1px #ff8888, inset -1px -1px #880000;
+  transition: filter 0.1s;
+}
+.btn-slam:not(:disabled):hover {
+  background: #dc3545;
+  box-shadow: 0 0 8px rgba(220, 53, 69, 0.8);
+}
+.btn-slam:not(:disabled):active {
+  background: #a71d2a;
+}
+.btn-slam:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.8);
+}
+
+/* Chassis Roll and Jackpot pulses */
+.lever-chassis.rolling {
+  animation: chassis-rumble 0.25s infinite alternate;
+}
+@keyframes chassis-rumble {
+  0% { transform: translate(0, 0); }
+  50% { transform: translate(1px, -1px); }
+  100% { transform: translate(-1px, 1px); }
+}
+.lever-chassis.jackpot {
+  box-shadow: 0 0 20px #ffd700, 0 0 35px #00ff88;
+}
+.lever-chassis.bust {
+  box-shadow: 0 0 20px #ff0000;
+}
 
 /* ===== Side panel ===== */
 .side { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
@@ -523,6 +742,13 @@ legend { padding: 0 4px; }
   .window { box-shadow: none; }
   .menubar { display: none; }
   .content { grid-template-columns: 1fr; grid-template-rows: 1fr auto; padding: 3px; gap: 4px; }
+  .board-stage { grid-template-columns: 1fr 105px; gap: 4px; }
+  .lever-chassis { padding: 3px 4px; gap: 3px; }
+  .lever-slot { min-height: 70px; padding: 4px 0; }
+  .lever-handle { height: 40px; }
+  .lever-knob { width: 26px; height: 26px; }
+  .lever-shaft { height: 16px; }
+  .lever-handle.pulled { transform: translateY(40px); }
   .side { flex-direction: row; overflow-x: auto; }
   .side fieldset { min-width: 150px; }
   .mods { min-width: 220px; }

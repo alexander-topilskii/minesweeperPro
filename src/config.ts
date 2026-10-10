@@ -17,6 +17,8 @@ export const CONFIG = {
   cascadeMultStep: 0.2,
   /** Data per correct flag, awarded at round end (not instantly — would leak mine positions). */
   flagRoundEndData: 10,
+  /** Cashout Lever base data per flagged mine. */
+  cashoutBaseDataPerFlag: 40,
 
   baseTarget: 280,
   /** Target multiplier per sector. */
@@ -32,6 +34,20 @@ export const CONFIG = {
   /** Pause before auto-advancing to the next stage, ms. */
   stageTransitionMs: 1400,
 } as const;
+
+export function cashoutMultiplier(flags: number): number {
+  if (flags <= 0) return 1.0;
+  if (flags <= 5) return 1.0 + flags * 0.5;
+  return 3.5 + (flags - 5) * 1.0;
+}
+
+export function cashoutScore(flags: number, combo = 0): number {
+  if (flags <= 0) return 0;
+  const mult = cashoutMultiplier(flags);
+  const baseData = flags * CONFIG.cashoutBaseDataPerFlag;
+  const comboBonus = 1 + combo * 0.15;
+  return Math.round(baseData * mult * comboBonus);
+}
 
 export function targetFor(stage: number): number {
   const sector = Math.floor(stage / 3);

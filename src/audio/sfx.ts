@@ -62,4 +62,41 @@ export class Sfx {
     src.connect(g).connect(ac.destination);
     src.start();
   }
+
+  /** Heavy mechanical knife-switch lever throw */
+  leverPull() {
+    this.tone(130, 0, 0.05, 'sawtooth', 0.14);
+    this.tone(85, 0.03, 0.12, 'square', 0.16);
+    this.tone(60, 0.08, 0.18, 'triangle', 0.2);
+  }
+
+  /** Suspense ticker for sequential flag check: "Тум... Тум... Тум..." */
+  rollTick(step: number) {
+    const baseFreq = 160 * 1.12 ** Math.min(step, 10);
+    this.tone(baseFreq, 0, 0.08, 'triangle', 0.16);
+    this.tone(baseFreq * 1.5, 0.02, 0.06, 'sine', 0.1);
+  }
+
+  /** Confirmation chirp when a checked flag is verified as a real mine */
+  flagConfirmed(step: number) {
+    const f = 520 * 1.08 ** Math.min(step, 8);
+    this.tone(f, 0, 0.08, 'sine', 0.09);
+    this.tone(f * 1.25, 0.04, 0.09, 'triangle', 0.07);
+  }
+
+  /** Emergency siren buzzer on false flag */
+  buzzer() {
+    this.tone(280, 0, 0.18, 'sawtooth', 0.22);
+    this.tone(210, 0.09, 0.25, 'sawtooth', 0.25);
+    this.tone(140, 0.2, 0.35, 'square', 0.22);
+  }
+
+  /** Triumphant arcade slot-machine jackpot bell sequence */
+  jackpotFanfare() {
+    const notes = [523, 659, 784, 1046, 784, 1046, 1318, 1568];
+    notes.forEach((freq, i) => {
+      this.tone(freq, i * 0.07, 0.16, 'sine', 0.15);
+      this.tone(freq * 0.5, i * 0.07, 0.14, 'triangle', 0.09);
+    });
+  }
 }
