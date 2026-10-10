@@ -281,72 +281,27 @@ legend { padding: 0 4px; }
 #fx { position: fixed; inset: 0; pointer-events: none; z-index: 20; }
 .float {
   position: absolute; transform: translate(-50%, -50%); white-space: nowrap; text-align: center;
-  font-family: 'Courier New', monospace;
+  font: bold 24px 'Courier New', monospace; color: #fff;
+  -webkit-text-stroke: 1.2px #000; paint-order: stroke fill;
   pointer-events: none;
 }
-
-/* Floating Score Pill: high contrast, crisp tags, lingers for over 1s */
+.float small {
+  display: block; font-size: 13px; -webkit-text-stroke: 0; color: #fff;
+  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 0 0 5px #000;
+}
 .float.score {
-  animation: score-rise 2.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  color: #ffe600; text-shadow: 0 0 12px rgba(255, 200, 0, 0.9), 2px 2px 0 #000;
+  animation: score-rise 2.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 .float.score.big {
-  animation: score-rise 2.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.score-pill {
-  background: rgba(10, 10, 16, 0.88);
-  border: 1px solid #ffcc00;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7), 0 0 10px rgba(255, 204, 0, 0.4);
-  padding: 4px 10px;
-  border-radius: 3px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-.score-val {
-  color: #ffe600;
-  font-size: 22px;
-  font-weight: bold;
-  line-height: 1;
-  text-shadow: 0 0 8px rgba(255, 200, 0, 0.9);
-}
-.float.score.big .score-val {
-  font-size: 28px;
+  font-size: 36px;
   color: #ffffff;
-  text-shadow: 0 0 10px #ffe600, 0 0 20px #ff8800;
+  text-shadow: 0 0 16px rgba(255, 220, 0, 1), 0 0 28px rgba(255, 120, 0, 0.9), 2px 2px 0 #000;
+  animation: score-rise 2.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
-.score-calc {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: #e0e0e0;
-  font-weight: bold;
-}
-.data-tag {
-  color: #4fc3ff;
-  text-shadow: 0 0 6px rgba(79, 195, 255, 0.8);
-}
-.mult-tag {
-  color: #ff4444;
-  text-shadow: 0 0 6px rgba(255, 68, 68, 0.8);
-}
-
-/* Floating Hurt Pill */
 .float.hurt {
-  animation: score-rise 2.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-.hurt-pill {
-  background: rgba(30, 0, 0, 0.9);
-  border: 1px solid #ff2a2a;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7), 0 0 12px rgba(255, 0, 0, 0.6);
-  color: #ff3333;
-  font-size: 18px;
-  font-weight: bold;
-  padding: 4px 10px;
-  border-radius: 3px;
-  text-shadow: 0 0 8px rgba(255, 40, 40, 0.9);
+  color: #ff2a2a; font-size: 24px; text-shadow: 0 0 12px rgba(255, 0, 0, 0.9), 2px 2px 0 #000;
+  animation: score-rise 2.0s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .float.banner {

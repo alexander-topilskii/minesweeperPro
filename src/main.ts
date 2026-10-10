@@ -83,19 +83,14 @@ function wire(g: Game) {
         if (t.exploded) {
           sfx.boom();
           view.kick();
-          fx.float(offsetX, offsetY, `<div class="hurt-pill">💥 -1 HP</div>`, 'hurt');
+          fx.float(offsetX, offsetY, '💥 -1 HP', 'hurt');
         }
         if (t.score > 0) {
           const big = t.score >= g.target * 0.25;
           fx.float(
             offsetX,
             offsetY,
-            `<div class="score-pill">
-              <span class="score-val">+${t.score}</span>
-              <span class="score-calc">
-                <span class="data-tag">${t.data} Data</span> × <span class="mult-tag">${t.mult.toFixed(1)} Mult</span>
-              </span>
-            </div>`,
+            `+${t.score}<small>${t.data} × ${t.mult.toFixed(1)}</small>`,
             big ? 'score big' : 'score',
           );
         }
