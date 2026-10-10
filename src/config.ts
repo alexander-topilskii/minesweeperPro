@@ -3,24 +3,24 @@ export const CONFIG = {
   board: { w: 10, h: 10 },
   baseMines: 15,
   minesPerStage: 1,
-  clicks: 20,
+  clicks: 25,
   hull: 3,
   moduleSlots: 5,
   consumableSlots: 3,
   rerollBaseCost: 3,
 
   /** Data for opening an empty (0) cell. */
-  zeroData: 1,
+  zeroData: 3,
   /** +Mult per consecutive safe turn. */
   comboMultStep: 0.25,
   /** +Mult per cascade chain step (BFS layer), not per cell. */
-  cascadeMultStep: 0.2,
+  cascadeMultStep: 0.25,
   /** Data per correct flag, awarded at round end (not instantly — would leak mine positions). */
   flagRoundEndData: 10,
   /** Cashout Lever base data per flagged mine. */
   cashoutBaseDataPerFlag: 40,
 
-  baseTarget: 280,
+  baseTarget: 190,
   /** Target multiplier per sector. */
   sectorGrowth: 1.6,
   /** Target multiplier for stage within sector: standard / deep / boss. */

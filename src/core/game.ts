@@ -307,7 +307,7 @@ export class Game {
     return this.board.cells.filter((c) => c.slotFlag && !c.revealed);
   }
 
-  /** Resolves false slot machine flag penalty: cell explodes/wrong, -1 HP, 40% score lost, combo reset */
+  /** Resolves false slot machine flag penalty: cell explodes/wrong, -1 HP, combo reset to 0, click refunded */
   resolveSlotBust(faultCell: Cell): void {
     faultCell.slotFlag = false;
     faultCell.flagged = false;
@@ -315,16 +315,9 @@ export class Game {
     faultCell.wrong = true;
     faultCell.exploded = true;
     this.hull--;
-
-    // 40% score penalty instead of full zero-wipe
-    const penalty = Math.round(this.score * 0.4);
-    this.score = Math.max(0, this.score - penalty);
+    this.clicks++; // Mine explosion does not waste battery click
     this.combo = 0;
     this.roundMult = 0;
-    if (this.score < this.target) {
-      this.cleared = false;
-      this.overchargeLevel = 0;
-    }
     this.isCashoutRolling = false;
     if (this.hull <= 0) {
       this.lossReason = 'hull';
@@ -538,18 +531,13 @@ export class Game {
     const prevCombo = this.combo;
     let comboBroken = false;
     if (ctx.exploded) {
-      // Hitting a mine costs 1 HP, cuts 40% of accumulated round score, and breaks combo streak
-      const penalty = Math.round(this.score * 0.4);
-      this.score = Math.max(0, this.score - penalty);
+      // Hitting a mine costs 1 HP and breaks combo multiplier, but keeps score and refunds the wasted click!
+      this.clicks++; // Compensate click so mine hit doesn't burn battery in vain
       this.combo = 0;
       this.roundMult = 0;
-      if (this.score < this.target) {
-        this.cleared = false;
-        this.overchargeLevel = 0;
-      }
       score = 0;
       comboBroken = prevCombo >= 1;
-      ctx.callouts.unshift(penalty > 0 ? `💥 ПОДРЫВ! -40% ОЧКОВ (-${penalty}) · СЕРИЯ СБИТА` : '💥 ПОДРЫВ! -1 HP · СЕРИЯ СБИТА');
+      ctx.callouts.unshift(prevCombo >= 1 ? `💥 ПОДРЫВ! -1 HP · СЕРИЯ СБИТА` : '💥 ПОДРЫВ! -1 HP');
     } else {
       this.score += score;
       this.combo = prevCombo + 1;

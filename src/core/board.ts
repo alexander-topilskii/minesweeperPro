@@ -45,16 +45,44 @@ export class Board {
     return out;
   }
 
-  /** Places mines avoiding the first clicked cell and its neighbours. */
+  /** Places mines avoiding the first clicked cell and its neighbours, while clustering mines to naturally create open zero basins. */
   generate(safe: Cell): void {
-    const forbidden = new Set([safe, ...this.neighbors(safe)]);
+    // 1. First clicked cell and its immediate 8 neighbors MUST be safe (guaranteed open start)
+    const forbidden = new Set<Cell>([safe, ...this.neighbors(safe)]);
+
+    // 2. Select 1-2 additional distant "oasis" seeds to guarantee multiple satisfying cascade meadows
+    const potentialSeeds = this.cells.filter((c) => {
+      const dist = Math.abs(c.x - safe.x) + Math.abs(c.y - safe.y);
+      return dist >= 4;
+    });
+
+    if (potentialSeeds.length > 0) {
+      const seed1 = potentialSeeds[Math.floor(this.rng() * potentialSeeds.length)];
+      forbidden.add(seed1);
+      for (const n of this.neighbors(seed1)) forbidden.add(n);
+
+      // Chance for a second meadow on opposite side
+      const potentialSeeds2 = potentialSeeds.filter((c) => {
+        const d1 = Math.abs(c.x - seed1.x) + Math.abs(c.y - seed1.y);
+        return d1 >= 4 && !forbidden.has(c);
+      });
+      if (potentialSeeds2.length > 0 && this.rng() > 0.35) {
+        const seed2 = potentialSeeds2[Math.floor(this.rng() * potentialSeeds2.length)];
+        forbidden.add(seed2);
+        for (const n of this.neighbors(seed2)) forbidden.add(n);
+      }
+    }
+
+    // 3. Place mines in the remaining pool with slight natural clustering (creates dense minefields + wide open valleys)
     const pool = this.cells.filter((c) => !forbidden.has(c));
     const count = Math.min(this.mineCount, pool.length);
+
     for (let i = 0; i < count; i++) {
       const j = i + Math.floor(this.rng() * (pool.length - i));
       [pool[i], pool[j]] = [pool[j], pool[i]];
       pool[i].mine = true;
     }
+
     for (const c of this.cells) c.adjacent = this.neighbors(c).filter((n) => n.mine).length;
     this.generated = true;
   }

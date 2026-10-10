@@ -166,12 +166,12 @@ const runSlotJackpotRoll = async () => {
     view.kick(0.65);
     if (lightsContainer) lightsContainer.className = 'board-lights bust';
     const p = cellScreen(failedCell.x, failedCell.y);
-    fx.burst(p.x, p.y, `<span class="hurt-main">💥 ВЗРЫВ! -1 HP</span><small style="color:#ff6666;font-weight:bold;">-40% ОЧКОВ · СЕРИЯ СБИТА</small>`, 'hurt');
+    fx.burst(p.x, p.y, `<span class="hurt-main">💥 ВЗРЫВ! -1 HP</span><small style="color:#ff6666;font-weight:bold;">СЕРИЯ СБИТА</small>`, 'hurt');
     game.resolveSlotBust(failedCell);
     view.sync();
     view.locked = false;
     isSlotRolling = false;
-    hud.showBonus([`💥 ОСЕЧКА СЛОТА! -1 HP`, `СЕРИЯ СБИТА · -40% ОЧКОВ`], true);
+    hud.showBonus([`💥 ОСЕЧКА СЛОТА! -1 HP`, `СЕРИЯ СБИТА`], true);
     hud.render();
     setTimeout(() => {
       if (lightsContainer) lightsContainer.className = 'board-lights';
@@ -243,7 +243,7 @@ function wire(g: Game) {
           sfx.boom();
           view.kick();
           if (t.comboBroken) sfx.breakCombo();
-          fx.burst(p.x, p.y, `<span class="hurt-main">💥 -1 HP</span><small style="color:#ff6666;font-weight:bold;">-40% ОЧКОВ · СЕРИЯ СБИТА</small>`, 'hurt');
+          fx.burst(p.x, p.y, `<span class="hurt-main">💥 -1 HP</span><small style="color:#ff6666;font-weight:bold;">СЕРИЯ СБИТА</small>`, 'hurt');
         }
         if (t.score > 0) {
           const big = t.score >= g.target * 0.25;
