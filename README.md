@@ -1,6 +1,7 @@
 # Sweeper: Overcharge
 
 Roguelike-сапёр с билдостроением в духе Balatro. Web · Three.js · TypeScript.
+- https://alexander-topilskii.github.io/minesweeperPro/ 
 
 - 📄 Дизайн-документ: [docs/README.md](docs/README.md)
 
