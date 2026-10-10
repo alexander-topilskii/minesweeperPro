@@ -74,28 +74,25 @@ function wire(g: Game) {
         const t = e.result;
         const p = cellScreen(t.origin.x, t.origin.y);
 
-        const calloutsHtml =
-          t.callouts && t.callouts.length
-            ? t.callouts
-                .slice(0, 2)
-                .map((c) => `<div class="callout-tag ${t.exploded ? 'alert' : ''}">${c}</div>`)
-                .join('')
-            : '';
-
         if (t.exploded) {
           sfx.boom();
           view.kick();
           if (t.comboBroken) sfx.breakCombo();
-          fx.burst(p.x, p.y, `${calloutsHtml}<span class="hurt-main">💥 -1 HP</span>`, 'hurt');
+          fx.burst(p.x, p.y, `<span class="hurt-main">💥 -1 HP</span>`, 'hurt');
         }
         if (t.score > 0) {
           const big = t.score >= g.target * 0.25;
           fx.burst(
             p.x,
             p.y,
-            `${calloutsHtml}<span class="score-main">+${t.score}</span><small>${t.data} × ${t.mult.toFixed(1)}</small>`,
+            `<span class="score-main">+${t.score}</span><small>${t.data} × ${t.mult.toFixed(1)}</small>`,
             big ? 'score big' : 'score',
           );
+        }
+
+        // Trigger vivid frameless bonus animations in sidebar next to bonus badges
+        if (t.callouts && t.callouts.length > 0) {
+          hud.showBonus(t.callouts, t.exploded);
         }
         if (t.comboStreak >= 2) {
           sfx.combo(t.comboStreak);

@@ -31,6 +31,8 @@ export class Hud {
   setGame(game: Game): void {
     this.game = game;
     this.displayedScore = 0;
+    const feed = $('bonus-feed');
+    if (feed) feed.innerHTML = '';
   }
 
   /** Mechanical score counter roll-up. */
@@ -114,15 +116,60 @@ export class Hud {
   private turnHtml(t?: TurnResult): string {
     if (!t) return `<div class="muted">Ожидание сканирования…</div>`;
     const x = t.xMult !== 1 ? ` <span class="x">×${fmt(t.xMult)}</span>` : '';
-    const callouts = t.callouts && t.callouts.length
-      ? `<div class="turn-callouts">${t.callouts.map((c) => `<span class="chip-callout">${c}</span>`).join('')}</div>`
-      : '';
     return `<div class="${t.exploded ? 'boom' : ''}">
-      ${callouts}
-      <span class="chip data">${t.data}</span> × <span class="chip mult">${fmt(t.mult)}</span>${x}
-      <div class="sum">= +${t.score}</div>
+      <div class="turn-calc">
+        <span class="chip data">${t.data}</span>
+        <span class="op">×</span>
+        <span class="chip mult" id="mult-chip">${fmt(t.mult)}</span>${x}
+        <span class="sum">= +${t.score}</span>
+      </div>
       <small>${t.cells} кл.${t.exploded ? ' · ПОДРЫВ' : ''}</small>
     </div>`;
+  }
+
+  /** Display juicy frameless glowing bonus text floating in the sidebar bonus feed */
+  showBonus(callouts: string[], isExploded: boolean): void {
+    const feed = $('bonus-feed');
+    if (!feed) return;
+
+    // Pulse multiplier badge on bonus addition
+    const multChip = $('mult-chip');
+    if (multChip && !isExploded) {
+      multChip.classList.remove('bump');
+      void multChip.offsetWidth;
+      multChip.classList.add('bump');
+    }
+
+    // Pulse combo badge in Systems panel
+    const comboEl = $('combo');
+    if (comboEl) {
+      comboEl.classList.remove('combo-bump', 'combo-break');
+      void comboEl.offsetWidth;
+      comboEl.classList.add(isExploded ? 'combo-break' : 'combo-bump');
+    }
+
+    callouts.forEach((text, i) => {
+      setTimeout(() => {
+        while (feed.children.length >= 3) {
+          feed.firstElementChild?.remove();
+        }
+
+        const el = document.createElement('div');
+        let cls = 'bonus-item';
+        if (text.includes('СБИТА')) cls += ' broken';
+        else if (text.includes('⚡')) cls += ' super';
+        else if (text.includes('🔥')) cls += ' hot';
+        else if (text.includes('В РЯД')) cls += ' streak';
+        else if (text.includes('КАСКАД')) cls += ' cascade';
+        else cls += ' module';
+
+        el.className = cls;
+        el.textContent = text;
+        feed.appendChild(el);
+
+        el.addEventListener('animationend', () => el.remove());
+      }, i * 90);
+    });
   }
 
   private renderOverlay(): void {
