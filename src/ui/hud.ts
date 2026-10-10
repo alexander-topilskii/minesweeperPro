@@ -8,18 +8,26 @@ const pad = (n: number, len: number) => String(Math.max(0, Math.min(n, 10 ** len
 /** DOM HUD in classic Minesweeper window chrome. */
 export class Hud {
   private displayedScore = 0;
+  private clearedPopupDismissed = false;
 
   constructor(
     private game: Game,
     private actions: {
       smiley(): void;
+      advance(): void;
       restart(): void;
       onUseConsumable(idx: number): void;
     },
   ) {
     $('smiley').addEventListener('click', () => this.actions.smiley());
     $('overlay').addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).closest('[data-action="restart"]')) this.actions.restart();
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-action="restart"]')) this.actions.restart();
+      if (target.closest('[data-action="advance"]')) this.actions.advance();
+      if (target.closest('[data-action="dismiss-cleared"]')) {
+        this.clearedPopupDismissed = true;
+        this.render();
+      }
     });
 
     $('consumables').addEventListener('click', (e) => {
@@ -29,7 +37,7 @@ export class Hud {
       this.actions.onUseConsumable(idx);
     });
 
-    $('btn-advance')?.addEventListener('click', () => this.actions.smiley());
+    $('btn-advance')?.addEventListener('click', () => this.actions.advance());
 
     requestAnimationFrame(this.tick);
   }
@@ -37,6 +45,7 @@ export class Hud {
   setGame(game: Game): void {
     this.game = game;
     this.displayedScore = 0;
+    this.clearedPopupDismissed = false;
     const feed = $('bonus-feed');
     if (feed) feed.innerHTML = '';
   }
@@ -56,6 +65,10 @@ export class Hud {
 
   render(): void {
     const g = this.game;
+
+    if (!g.cleared) {
+      this.clearedPopupDismissed = false;
+    }
 
     // View toggle between game and shop
     const isShop = g.status === 'shop';
@@ -131,7 +144,7 @@ export class Hud {
       const con = g.consumables[g.activeConsumableIdx];
       $('status-hint').textContent = `🎯 [РЕЖИМ ПРИЦЕЛА]: Кликните ПКМ/ЛКМ по закрытой клетке, чтобы поставить «${con?.name}»`;
     } else if (g.cleared && g.status === 'playing') {
-      $('status-hint').textContent = '😎 — нажмите «В МАГАЗИН» для перехода к покупкам или набивайте Overcharge дальше!';
+      $('status-hint').textContent = '😎 Цель выполнена! Нажмите «ПРОДОЛЖИТЬ» для перехода в магазин или набивайте Overcharge';
     } else {
       $('status-hint').textContent = 'ЛКМ — скан · ПКМ — флаг · 🎰 Соберите 3 флага-слота для джекпота!';
     }
@@ -201,10 +214,9 @@ export class Hud {
   private renderOverlay(): void {
     const g = this.game;
     const el = $('overlay');
-    if (g.status !== 'lost' && g.status !== 'victory') return void (el.hidden = true);
-    el.hidden = false;
 
     if (g.status === 'lost') {
+      el.hidden = false;
       let reasonText = 'Сектор не зачищен';
       let reasonSub = '';
       if (g.lossReason === 'clicks') {
@@ -231,7 +243,11 @@ export class Hud {
         </div>
         <div class="dialog-btns"><button class="btn bevel-out" data-action="restart">Начать с начала</button></div>
       </div>`;
-    } else {
+      return;
+    }
+
+    if (g.status === 'victory') {
+      el.hidden = false;
       el.innerHTML = `<div class="window dialog">
         <div class="titlebar"><span class="title">Миссия выполнена</span><span class="tbtns"><b>×</b></span></div>
         <div class="dialog-body">
@@ -243,7 +259,61 @@ export class Hud {
         </div>
         <div class="dialog-btns"><button class="btn bevel-out" data-action="restart">Начать с начала</button></div>
       </div>`;
+      return;
     }
+
+    if (g.cleared && !this.clearedPopupDismissed && g.status === 'playing') {
+      el.hidden = false;
+      const overchargeLvl = Math.max(0, Math.floor((g.score - g.target) / (g.target * CONFIG.overchargeBitStep)));
+      const bitsReward = CONFIG.bitsPerWin + g.clicks * CONFIG.bitsPerClickLeft + overchargeLvl;
+
+      el.innerHTML = `<div class="window dialog cleared-dialog">
+        <div class="titlebar">
+          <span class="title">Сектор зачищен — Задание выполнено!</span>
+          <span class="tbtns"><b data-action="dismiss-cleared" title="Допройти поле">×</b></span>
+        </div>
+        <div class="dialog-body">
+          <span class="dicon">🎉</span>
+          <div class="dialog-content">
+            <div class="cleared-header">СЕКТОР ${g.sector} ЗАЧИЩЕН!</div>
+            <div class="cleared-sub">Норма очков успешно набрана.</div>
+            <div class="stats-box bevel-in">
+              <div class="stat-row">
+                <span>Сектор:</span>
+                <b>${g.sector}/${CONFIG.sectors} (${g.stageName})</b>
+              </div>
+              <div class="stat-row">
+                <span>Счёт:</span>
+                <b class="highlight-score">${g.score} / ${g.target}</b>
+              </div>
+              <div class="stat-row">
+                <span>Батарея сканера:</span>
+                <b class="highlight-clicks">${g.clicks} кликов</b>
+              </div>
+              <div class="stat-row">
+                <span>Награда:</span>
+                <b class="highlight-bits">+${bitsReward} Bits</b>
+              </div>
+              ${overchargeLvl > 0 ? `
+              <div class="stat-row">
+                <span>Overcharge:</span>
+                <b class="highlight-overcharge">Ур. ${overchargeLvl} (+${overchargeLvl} Bits)</b>
+              </div>` : ''}
+            </div>
+            <div class="cleared-prompt">
+              Перейдите в магазин за покупками или продолжите исследовать поле для фарма Overcharge.
+            </div>
+          </div>
+        </div>
+        <div class="dialog-btns cleared-btns">
+          <button class="btn btn-primary bevel-out" data-action="advance">Продолжить ▶</button>
+          <button class="btn bevel-out" data-action="dismiss-cleared">Допройти поле ⛏</button>
+        </div>
+      </div>`;
+      return;
+    }
+
+    el.hidden = true;
   }
 
   flashModule(id: string): void {

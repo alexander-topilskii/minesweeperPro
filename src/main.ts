@@ -240,6 +240,9 @@ const hud = new Hud(game, {
     if (game.status === 'lost' || game.status === 'victory') restart();
     else game.advance();
   },
+  advance: () => {
+    game.advance();
+  },
   restart,
   onUseConsumable: (idx) => {
     const success = game.useConsumable(idx);
@@ -309,7 +312,7 @@ function wire(g: Game) {
       case 'cleared':
         fx.banner(boardEl, 'ЦЕЛЬ ВЫПОЛНЕНА!\nСЕКТОР ПРОЙДЕН', 'rainbow');
         sfx.jackpotFanfare();
-        hud.showBonus(['🎉 ЦЕЛЬ ВЫПОЛНЕНА!', '🏁 В МАГАЗИН ИЛИ НАБИВАЙТЕ OVERCHARGE!'], false);
+        hud.showBonus(['🎉 ЦЕЛЬ ВЫПОЛНЕНА!', '🏁 ПРОДОЛЖИТЬ ИЛИ НАБИВАТЬ OVERCHARGE!'], false);
         break;
       case 'overchargeUp':
         fx.banner(boardEl, `⚡ OVERCHARGE УР. ${e.level}!\n+1 EXTRA BIT`, 'bits');

@@ -54,6 +54,10 @@ body {
 .tbtns b {
   width: 18px; height: 16px; display: grid; place-items: center; font-size: 11px; color: #000;
   background: var(--face); border: 2px solid; border-color: var(--light) var(--dark) var(--dark) var(--light);
+  cursor: pointer; user-select: none;
+}
+.tbtns b:active {
+  border-color: var(--dark) var(--light) var(--light) var(--dark);
 }
 .menubar {
   padding: 2px 4px;
@@ -992,9 +996,91 @@ legend { padding: 0 4px; }
   color: #008800;
   letter-spacing: 0.5px;
 }
+.cleared-dialog {
+  width: 380px;
+  max-width: 95vw;
+}
+.cleared-header {
+  font-size: 15px;
+  font-weight: 900;
+  color: #008800;
+  letter-spacing: 0.5px;
+}
+.cleared-sub {
+  font-size: 11px;
+  color: #333;
+  margin-bottom: 4px;
+}
+.stats-box {
+  background: #000080;
+  color: #ffffff;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  border: 2px solid;
+  border-color: var(--shadow) var(--light) var(--light) var(--shadow);
+  margin: 4px 0 6px;
+}
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.stat-row span {
+  color: #a0c0ff;
+  font-size: 11px;
+}
+.highlight-score {
+  color: #ffff00;
+  text-shadow: 0 0 4px rgba(255, 255, 0, 0.4);
+}
+.highlight-clicks {
+  color: #00ffff;
+  text-shadow: 0 0 4px rgba(0, 255, 255, 0.4);
+}
+.highlight-bits {
+  color: #00ff66;
+  font-weight: bold;
+  text-shadow: 0 0 6px rgba(0, 255, 100, 0.5);
+}
+.highlight-overcharge {
+  color: #ffaa00;
+  text-shadow: 0 0 4px rgba(255, 170, 0, 0.5);
+}
+.cleared-prompt {
+  font-size: 11px;
+  color: #444;
+  line-height: 1.35;
+  margin-top: 2px;
+}
 .dialog-btns { display: flex; justify-content: center; padding: 0 0 12px; }
+.dialog-btns.cleared-btns {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  padding: 4px 14px 14px;
+}
+.cleared-dialog .btn {
+  font-weight: bold;
+  padding: 6px 14px;
+  font-size: 12px;
+}
 .btn { font: inherit; padding: 4px 18px; cursor: pointer; outline: 1px dotted #000; outline-offset: -5px; }
 .btn:active { border-color: var(--shadow) var(--light) var(--light) var(--shadow); }
+.btn.btn-primary {
+  font-weight: bold;
+  background: #008800;
+  color: #fff;
+  text-shadow: 1px 1px 0 #000;
+  box-shadow: 0 0 8px rgba(0, 160, 0, 0.35);
+}
+.btn.btn-primary:hover {
+  background: #00aa00;
+  box-shadow: 0 0 12px rgba(0, 220, 0, 0.6);
+}
 
 /* ===== CRT overlay: faint scanlines for nostalgia ===== */
 .crt {
