@@ -18,7 +18,7 @@ export const CONFIG = {
   /** Data per correct flag, awarded at round end (not instantly — would leak mine positions). */
   flagRoundEndData: 10,
 
-  baseTarget: 600,
+  baseTarget: 280,
   /** Target multiplier per sector. */
   sectorGrowth: 1.6,
   /** Target multiplier for stage within sector: standard / deep / boss. */

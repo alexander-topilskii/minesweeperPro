@@ -6,8 +6,8 @@ import { ShopView } from './ui/shopView';
 import { Fx } from './ui/fx';
 import { Sfx } from './audio/sfx';
 
-/** Starter loadout. */
-const STARTER = ['MOD-VAL-01', 'MOD-RUL-06', 'MOD-HAZ-01'];
+/** Starter loadout: empty so the game starts vanilla without overwhelming the player. */
+const STARTER: string[] = [];
 
 const boardEl = document.getElementById('board')!;
 const sfx = new Sfx();
@@ -73,14 +73,31 @@ function wire(g: Game) {
       case 'turn': {
         const t = e.result;
         const p = cellScreen(t.origin.x, t.origin.y);
+        const boardRect = boardEl.getBoundingClientRect();
+
+        // Offset popup to the side and slightly above cell so cursor or finger does not obscure it
+        const isNearRightEdge = p.x > boardRect.right - 140;
+        const offsetX = isNearRightEdge ? p.x - 56 : p.x + 56;
+        const offsetY = Math.max(boardRect.top + 32, Math.min(boardRect.bottom - 45, p.y - 24));
+
         if (t.exploded) {
           sfx.boom();
           view.kick();
-          fx.float(p.x, p.y + 20, '-1 HP', 'hurt');
+          fx.float(offsetX, offsetY, `<div class="hurt-pill">💥 -1 HP</div>`, 'hurt');
         }
         if (t.score > 0) {
           const big = t.score >= g.target * 0.25;
-          fx.float(p.x, p.y, `+${t.score}<small>${t.data} × ${t.mult.toFixed(1)}</small>`, big ? 'score big' : 'score');
+          fx.float(
+            offsetX,
+            offsetY,
+            `<div class="score-pill">
+              <span class="score-val">+${t.score}</span>
+              <span class="score-calc">
+                <span class="data-tag">${t.data} Data</span> × <span class="mult-tag">${t.mult.toFixed(1)} Mult</span>
+              </span>
+            </div>`,
+            big ? 'score big' : 'score',
+          );
         }
         if (t.cells > 1) sfx.cascade(t.cells);
         else if (t.cells === 1) sfx.click();
