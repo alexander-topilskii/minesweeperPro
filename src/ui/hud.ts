@@ -229,7 +229,7 @@ export class Hud {
             <div class="loss-stats">Сектор ${g.sector} · Счёт: ${g.score} / ${g.target}</div>
           </div>
         </div>
-        <div class="dialog-btns"><button class="btn bevel-out" data-action="restart">Новый забег</button></div>
+        <div class="dialog-btns"><button class="btn bevel-out" data-action="restart">Начать с начала</button></div>
       </div>`;
     } else {
       el.innerHTML = `<div class="window dialog">
@@ -241,7 +241,7 @@ export class Hud {
             <p>Вы прошли все глубины. Накоплено Bits: <b>${g.bits}</b></p>
           </div>
         </div>
-        <div class="dialog-btns"><button class="btn bevel-out" data-action="restart">Новый забег</button></div>
+        <div class="dialog-btns"><button class="btn bevel-out" data-action="restart">Начать с начала</button></div>
       </div>`;
     }
   }

@@ -55,7 +55,42 @@ body {
   width: 18px; height: 16px; display: grid; place-items: center; font-size: 11px; color: #000;
   background: var(--face); border: 2px solid; border-color: var(--light) var(--dark) var(--dark) var(--light);
 }
-.menubar { padding: 3px 6px; display: flex; gap: 14px; }
+.menubar {
+  padding: 2px 4px;
+  display: flex;
+  gap: 6px;
+  background: var(--face);
+  border-bottom: 1px solid var(--shadow);
+  align-items: center;
+}
+.menu-item {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  padding: 2px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #000;
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+  display: inline-flex;
+  align-items: center;
+}
+.menu-item u {
+  text-decoration: underline;
+  margin-right: 0.5px;
+}
+.menu-item:hover {
+  background: #e6e6e6;
+  border-color: var(--shadow);
+  box-shadow: inset 1px 1px #fff;
+}
+.menu-item:active {
+  background: #d0d0d0;
+  border-color: var(--dark) var(--light) var(--light) var(--dark);
+}
 
 .content { flex: 1; display: grid; grid-template-columns: 1fr 260px; gap: 8px; padding: 6px; min-height: 0; }
 [hidden], #game-view[hidden], .content[hidden], .shop-view[hidden] { display: none !important; }

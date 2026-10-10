@@ -36,7 +36,34 @@ const shopView = new ShopView(game, {
   },
 });
 
+const SAVE_KEY = 'minesweeper_pro_save';
+
+const saveProgress = () => {
+  try {
+    const saveData = {
+      stage: game.stage,
+      score: game.score,
+      target: game.target,
+      clicks: game.clicks,
+      hull: game.hull,
+      bits: game.bits,
+      combo: game.combo,
+      roundMult: game.roundMult,
+      modules: game.modules.map((m) => m.id),
+      consumables: game.consumables.map((c) => c.id),
+      savedAt: Date.now(),
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+    sfx.relay();
+    fx.banner(boardEl, '💾 ПРОГРЕСС СОХРАНЁН!', 'bits');
+    hud.showBonus(['💾 ПРОГРЕСС СОХРАНЁН', 'В ЛОКАЛЬНОЕ ХРАНИЛИЩЕ'], false);
+  } catch (err) {
+    console.error('Save failed', err);
+  }
+};
+
 const restart = () => {
+  localStorage.removeItem(SAVE_KEY);
   game = new Game(STARTER.map(getModule));
   wire(game);
   hud.setGame(game);
@@ -44,7 +71,16 @@ const restart = () => {
   view.build(game.board);
   hud.render();
   shopView.render();
+  sfx.click();
+  fx.banner(boardEl, 'НОВЫЙ ЗАБЕГ\nС НАЧАЛА', 'rainbow');
 };
+
+document.getElementById('btn-menu-save')?.addEventListener('click', saveProgress);
+document.getElementById('btn-menu-restart')?.addEventListener('click', () => {
+  if (confirm('Начать забег с самого начала? Текущий прогресс будет сброшен.')) {
+    restart();
+  }
+});
 
 let isSlotRolling = false;
 
