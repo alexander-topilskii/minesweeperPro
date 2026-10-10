@@ -1,7 +1,7 @@
 /** Tunable balance values. Mirror of docs/gdd/03-scoring.md — keep in sync. */
 export const CONFIG = {
   board: { w: 10, h: 10 },
-  baseMines: 14,
+  baseMines: 15,
   minesPerStage: 1,
   clicks: 20,
   hull: 3,
@@ -11,20 +11,24 @@ export const CONFIG = {
   zeroData: 1,
   /** +Mult per consecutive safe turn. */
   comboMultStep: 0.25,
-  /** +Mult per auto-opened cell in a cascade. */
+  /** +Mult per cascade chain step (BFS layer), not per cell. */
   cascadeMultStep: 0.2,
   /** Data per correct flag, awarded at round end (not instantly — would leak mine positions). */
   flagRoundEndData: 10,
 
-  baseTarget: 120,
+  baseTarget: 600,
   /** Target multiplier per sector. */
-  sectorGrowth: 1.7,
+  sectorGrowth: 1.6,
   /** Target multiplier for stage within sector: standard / deep / boss. */
-  stageTiers: [1, 1.5, 2],
+  stageTiers: [1, 1.4, 1.8],
   sectors: 8,
 
   bitsPerWin: 3,
   bitsPerClickLeft: 1,
+  /** +1 Bit for every this fraction of target scored above it (overcharge). */
+  overchargeBitStep: 0.5,
+  /** Pause before auto-advancing to the next stage, ms. */
+  stageTransitionMs: 1400,
 } as const;
 
 export function targetFor(stage: number): number {

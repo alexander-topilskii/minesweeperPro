@@ -55,24 +55,27 @@ export class Board {
     this.generated = true;
   }
 
-  /** Reveals a safe cell; flood-fills through zeros. Returns cells in BFS order (first = start). */
-  flood(start: Cell): Cell[] {
+  /** Reveals a safe cell; flood-fills through zeros. Returns BFS layers (layer 0 = start, each next layer = one chain step). */
+  flood(start: Cell): Cell[][] {
     if (start.revealed || start.mine) return [];
-    const opened: Cell[] = [];
-    const queue = [start];
+    const layers: Cell[][] = [];
+    let frontier = [start];
     start.revealed = true;
-    while (queue.length) {
-      const c = queue.shift()!;
-      c.flagged = false;
-      opened.push(c);
-      if (c.adjacent !== 0) continue;
-      for (const n of this.neighbors(c)) {
-        if (n.revealed || n.mine || n.flagged) continue;
-        n.revealed = true;
-        queue.push(n);
+    while (frontier.length) {
+      layers.push(frontier);
+      const next: Cell[] = [];
+      for (const c of frontier) {
+        c.flagged = false;
+        if (c.adjacent !== 0) continue;
+        for (const n of this.neighbors(c)) {
+          if (n.revealed || n.mine || n.flagged) continue;
+          n.revealed = true;
+          next.push(n);
+        }
       }
+      frontier = next;
     }
-    return opened;
+    return layers;
   }
 
   safeRemaining(): number {

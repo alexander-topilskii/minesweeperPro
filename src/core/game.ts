@@ -2,7 +2,13 @@ import { Board, type Cell } from './board';
 import { CONFIG, minesFor, targetFor } from '../config';
 import type { ModuleDef, ModuleHooks, TurnContext } from './types';
 
-export type RoundStatus = 'playing' | 'won' | 'lost' | 'victory';
+/**
+ * playing    — round in progress (target may already be reached — see `cleared`)
+ * transition — round banked, next stage is about to start
+ * lost       — round ended below target, run over
+ * victory    — all sectors done
+ */
+export type RoundStatus = 'playing' | 'transition' | 'lost' | 'victory';
 
 export interface TurnResult {
   data: number;
@@ -11,11 +17,20 @@ export interface TurnResult {
   score: number;
   cells: number;
   exploded: boolean;
+  origin: { x: number; y: number };
+}
+
+export interface RoundSummary {
+  score: number;
+  target: number;
+  bits: number;
 }
 
 export type GameEvent =
   | { type: 'change' }
   | { type: 'turn'; result: TurnResult }
+  | { type: 'cleared' }
+  | { type: 'roundEnd'; summary: RoundSummary }
   | { type: 'moduleFired'; id: string }
   | { type: 'newBoard' };
 
@@ -30,6 +45,8 @@ export class Game {
   combo = 0;
   /** Permanent-for-round additive Mult (e.g. Extremum). */
   roundMult = 0;
+  /** Target reached this round; play continues for overcharge until resources run out or player advances. */
+  cleared = false;
   status: RoundStatus = 'playing';
   lastTurn?: TurnResult;
   /** Per-round scratch state for modules, keyed by module id. */
@@ -72,6 +89,7 @@ export class Game {
     this.hull = CONFIG.hull;
     this.combo = 0;
     this.roundMult = 0;
+    this.cleared = false;
     this.roundState = {};
     this.lastTurn = undefined;
     this.status = 'playing';
@@ -81,8 +99,15 @@ export class Game {
   }
 
   nextStage(): void {
-    if (this.status !== 'won') return;
-    this.startStage(this.stage + 1);
+    if (this.status === 'transition') this.startStage(this.stage + 1);
+  }
+
+  /** Player chooses to bank early (keeps leftover clicks as Bits). */
+  advance(): void {
+    if (this.status === 'playing' && this.cleared) {
+      this.endRound();
+      this.emit({ type: 'change' });
+    }
   }
 
   // ---------- Player actions ----------
@@ -106,7 +131,7 @@ export class Game {
     const ctx = this.beginTurn();
     if (cell.mine) this.hitMine(cell, ctx);
     else this.openSafe(cell, ctx);
-    this.endTurn(ctx);
+    this.endTurn(ctx, cell);
   }
 
   private chord(cell: Cell): void {
@@ -121,10 +146,10 @@ export class Game {
       if (t.mine) this.hitMine(t, ctx);
       else this.openSafe(t, ctx);
     }
-    this.endTurn(ctx);
+    this.endTurn(ctx, cell);
   }
 
-  // ---------- Turn pipeline (public so modules can trigger extra reveals) ----------
+  // ---------- Turn pipeline (openSafe is public so modules can trigger extra reveals) ----------
 
   private beginTurn(): TurnContext {
     this.clicks--;
@@ -139,17 +164,19 @@ export class Game {
   }
 
   openSafe(start: Cell, ctx: TurnContext): void {
-    const opened = this.board.flood(start);
-    opened.forEach((c, i) => {
-      ctx.revealed.push(c);
-      if (i > 0) {
+    const layers = this.board.flood(start);
+    layers.forEach((layer, depth) => {
+      if (depth > 0) {
         ctx.cascadeSteps++;
         ctx.mult += CONFIG.cascadeMultStep;
       }
-      ctx.data += c.adjacent || CONFIG.zeroData;
-      this.runHook('onReveal', (h) => h(this, ctx, c));
+      for (const c of layer) {
+        ctx.revealed.push(c);
+        ctx.data += c.adjacent || CONFIG.zeroData;
+        this.runHook('onReveal', (h) => h(this, ctx, c));
+      }
     });
-    if (opened.length > 1) this.runHook('onCascade', (h) => h(this, ctx, opened));
+    if (layers.length > 1) this.runHook('onCascade', (h) => h(this, ctx, layers.flat()));
   }
 
   private hitMine(cell: Cell, ctx: TurnContext): void {
@@ -162,7 +189,7 @@ export class Game {
     if (!ev.prevented) this.hull--;
   }
 
-  private endTurn(ctx: TurnContext): void {
+  private endTurn(ctx: TurnContext, origin: Cell): void {
     const score = Math.round(ctx.data * ctx.mult * ctx.xMult);
     this.score += score;
     this.combo = ctx.exploded ? 0 : this.combo + 1;
@@ -173,23 +200,30 @@ export class Game {
       score,
       cells: ctx.revealed.length,
       exploded: ctx.exploded,
+      origin: { x: origin.x, y: origin.y },
     };
     this.emit({ type: 'turn', result: this.lastTurn });
-    this.checkRoundEnd();
+    if (!this.cleared && this.score >= this.target) {
+      this.cleared = true;
+      this.emit({ type: 'cleared' });
+    }
+    if (this.hull <= 0 || this.clicks <= 0 || this.board.safeRemaining() === 0) this.endRound();
     this.emit({ type: 'change' });
   }
 
-  private checkRoundEnd(): void {
-    if (this.score >= this.target) return this.winRound();
-    if (this.hull <= 0 || this.clicks <= 0 || this.board.safeRemaining() === 0) this.status = 'lost';
-  }
-
-  private winRound(): void {
+  private endRound(): void {
+    if (!this.cleared) {
+      this.status = 'lost';
+      return;
+    }
     const correctFlags = this.board.cells.filter((c) => c.flagged && c.mine).length;
     this.score += correctFlags * CONFIG.flagRoundEndData;
     this.runHook('onRoundEnd', (h) => h(this));
-    this.bits += CONFIG.bitsPerWin + this.clicks * CONFIG.bitsPerClickLeft;
-    this.status = this.stage + 1 >= CONFIG.sectors * 3 ? 'victory' : 'won';
+    const overcharge = Math.floor((this.score - this.target) / (this.target * CONFIG.overchargeBitStep));
+    const bits = CONFIG.bitsPerWin + this.clicks * CONFIG.bitsPerClickLeft + Math.max(0, overcharge);
+    this.bits += bits;
+    this.status = this.stage + 1 >= CONFIG.sectors * 3 ? 'victory' : 'transition';
+    this.emit({ type: 'roundEnd', summary: { score: this.score, target: this.target, bits } });
   }
 
   private runHook<K extends keyof ModuleHooks>(name: K, call: (h: ModuleHooks[K]) => void): void {

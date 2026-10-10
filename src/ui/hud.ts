@@ -1,23 +1,21 @@
 import type { Game, TurnResult } from '../core/game';
 import { CONFIG } from '../config';
 
+const $ = (id: string) => document.getElementById(id)!;
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+const pad = (n: number, len: number) => String(Math.max(0, Math.min(n, 10 ** len - 1))).padStart(len, '0');
 
-/** DOM HUD: stats, last-turn breakdown, module slots, round overlay. */
+/** DOM HUD in classic Minesweeper window chrome. */
 export class Hud {
-  private hud = document.getElementById('hud')!;
-  private modules = document.getElementById('modules')!;
-  private overlay = document.getElementById('overlay')!;
   private displayedScore = 0;
 
   constructor(
     private game: Game,
-    private actions: { next(): void; restart(): void },
+    private actions: { smiley(): void; restart(): void },
   ) {
-    this.overlay.addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest('[data-action]') as HTMLElement | null;
-      if (btn?.dataset.action === 'next') this.actions.next();
-      if (btn?.dataset.action === 'restart') this.actions.restart();
+    $('smiley').addEventListener('click', () => this.actions.smiley());
+    $('overlay').addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('[data-action="restart"]')) this.actions.restart();
     });
     requestAnimationFrame(this.tick);
   }
@@ -32,67 +30,80 @@ export class Hud {
     const target = this.game.score;
     if (this.displayedScore !== target) {
       const diff = target - this.displayedScore;
-      this.displayedScore += Math.sign(diff) * Math.max(1, Math.ceil(Math.abs(diff) * 0.15));
-      if ((diff > 0 && this.displayedScore > target) || (diff < 0 && this.displayedScore < target)) this.displayedScore = target;
-      const el = this.hud.querySelector('#score');
-      if (el) el.textContent = String(this.displayedScore);
+      const step = Math.sign(diff) * Math.max(1, Math.ceil(Math.abs(diff) * 0.12));
+      this.displayedScore = Math.abs(step) >= Math.abs(diff) ? target : this.displayedScore + step;
+      $('lcd-score').textContent = pad(this.displayedScore, 6);
+      $('lcd-score').classList.toggle('rolling', this.displayedScore !== target);
     }
     requestAnimationFrame(this.tick);
   };
 
   render(): void {
     const g = this.game;
+    $('lcd-clicks').textContent = pad(g.clicks, 3);
+    $('lcd-clicks').classList.toggle('low', g.clicks <= 3);
+    $('lcd-score').textContent = pad(this.displayedScore, 6);
+
+    const smiley = $('smiley');
+    smiley.dataset.state = g.status === 'lost' ? 'dead' : g.cleared ? 'cool' : 'normal';
+    smiley.title = g.cleared && g.status === 'playing' ? 'Забрать награду и перейти дальше' : g.status === 'lost' ? 'Новый забег' : '';
+
     const pct = Math.min(100, (g.score / g.target) * 100);
-    const hull = '■'.repeat(Math.max(0, g.hull)) + '□'.repeat(Math.max(0, CONFIG.hull - g.hull));
-    this.hud.innerHTML = `
-      <h1>SWEEPER<span>:OVERCHARGE</span></h1>
-      <div class="stage">СЕКТОР ${g.sector}/${CONFIG.sectors} · ${g.stageName}</div>
-      <div class="block">
-        <div class="label">ОЧКИ</div>
-        <div class="big"><span id="score">${this.displayedScore}</span> / ${g.target}</div>
-        <div class="bar"><i style="width:${pct}%"></i></div>
-      </div>
-      ${this.turnHtml(g.lastTurn)}
-      <div class="grid">
-        <div><div class="label">БАТАРЕЯ</div><div class="val">${g.clicks}</div></div>
-        <div><div class="label">КОРПУС</div><div class="val hull">${hull}</div></div>
-        <div><div class="label">КОМБО</div><div class="val">${g.combo}</div></div>
-        <div><div class="label">BITS</div><div class="val">${g.bits}</div></div>
-      </div>
-      <div class="hint">ЛКМ — скан · ПКМ — флаг · клик по цифре — аккорд<br/>Touch: тап — скан, удержание — флаг</div>
-    `;
-    this.modules.innerHTML = Array.from({ length: CONFIG.moduleSlots }, (_, i) => {
+    $('target-fill').style.width = `${pct}%`;
+    $('target-text').textContent = g.cleared
+      ? `OVERCHARGE ${Math.round((g.score / g.target) * 100)}%`
+      : `ЦЕЛЬ ${g.target}`;
+    document.body.classList.toggle('cleared', g.cleared);
+
+    $('turn').innerHTML = this.turnHtml(g.lastTurn);
+    $('hull').innerHTML = Array.from({ length: CONFIG.hull }, (_, i) => `<i class="${i < g.hull ? 'on' : ''}"></i>`).join('');
+    $('combo').textContent = `${g.combo}  (+${fmt(g.combo * CONFIG.comboMultStep)})`;
+    $('bits').textContent = String(g.bits);
+
+    $('modules').innerHTML = Array.from({ length: CONFIG.moduleSlots }, (_, i) => {
       const m = g.modules[i];
       return m
-        ? `<div class="module" data-id="${m.id}"><b>${m.name}</b><small>${m.description}</small></div>`
-        : `<div class="module empty">— пусто —</div>`;
+        ? `<div class="module bevel-out" data-id="${m.id}"><b>${m.name}</b><small>${m.description}</small></div>`
+        : `<div class="module empty">пустой слот</div>`;
     }).join('');
+
+    $('status-stage').textContent = `Сектор ${g.sector}/${CONFIG.sectors} · ${g.stageName}`;
+    $('status-hint').textContent =
+      g.cleared && g.status === 'playing'
+        ? '😎 — забрать награду (остаток кликов → Bits) или продолжай копить Overcharge'
+        : 'ЛКМ — скан · ПКМ/удержание — флаг · клик по цифре — аккорд';
+
     this.renderOverlay();
   }
 
   private turnHtml(t?: TurnResult): string {
-    if (!t) return `<div class="turn muted">Ожидание сканирования…</div>`;
+    if (!t) return `<div class="muted">Ожидание сканирования…</div>`;
     const x = t.xMult !== 1 ? ` <span class="x">×${fmt(t.xMult)}</span>` : '';
-    return `<div class="turn ${t.exploded ? 'boom' : ''}">
-      <span class="data">${t.data}</span> × <span class="mult">${fmt(t.mult)}</span>${x} = <b>+${t.score}</b>
+    return `<div class="${t.exploded ? 'boom' : ''}">
+      <span class="chip data">${t.data}</span> × <span class="chip mult">${fmt(t.mult)}</span>${x}
+      <div class="sum">= +${t.score}</div>
       <small>${t.cells} кл.${t.exploded ? ' · ПОДРЫВ' : ''}</small>
     </div>`;
   }
 
   private renderOverlay(): void {
     const g = this.game;
-    if (g.status === 'playing') return void (this.overlay.hidden = true);
-    this.overlay.hidden = false;
-    const content = {
-      won: `<h2>СЕКТОР ОЧИЩЕН</h2><p>Счёт ${g.score} / ${g.target}<br/>Bits: ${g.bits}</p><button data-action="next">ДАЛЕЕ ▶</button>`,
-      lost: `<h2>СИГНАЛ ПОТЕРЯН</h2><p>Счёт ${g.score} / ${g.target}</p><button data-action="restart">НОВЫЙ ЗАБЕГ</button>`,
-      victory: `<h2>ВСЕ ГЛУБИНЫ ПРОЙДЕНЫ</h2><p>Bits: ${g.bits}</p><button data-action="restart">НОВЫЙ ЗАБЕГ</button>`,
-    }[g.status];
-    this.overlay.innerHTML = `<div class="panel">${content}</div>`;
+    const el = $('overlay');
+    if (g.status !== 'lost' && g.status !== 'victory') return void (el.hidden = true);
+    el.hidden = false;
+    const [title, icon, text] =
+      g.status === 'lost'
+        ? ['Сигнал потерян', '⚠', `Сектор ${g.sector}, счёт ${g.score} / ${g.target}`]
+        : ['Миссия выполнена', 'ℹ', `Все глубины пройдены. Bits: ${g.bits}`];
+    el.innerHTML = `<div class="window dialog">
+      <div class="titlebar"><span class="title">${title}</span><span class="tbtns"><b>×</b></span></div>
+      <div class="dialog-body"><span class="dicon">${icon}</span><p>${text}</p></div>
+      <div class="dialog-btns"><button class="btn bevel-out" data-action="restart">Новый забег</button></div>
+    </div>`;
   }
 
   flashModule(id: string): void {
-    const el = this.modules.querySelector(`[data-id="${id}"]`);
+    const el = document.querySelector(`.module[data-id="${id}"]`);
     if (!el) return;
     el.classList.remove('fired');
     void (el as HTMLElement).offsetWidth;

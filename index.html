@@ -7,11 +7,54 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <div id="app">
-      <aside id="hud"></aside>
-      <main id="board"></main>
-      <footer id="modules"></footer>
+    <div class="window" id="win">
+      <div class="titlebar">
+        <span class="title"><i class="icon">✱</i> Sweeper: Overcharge</span>
+        <span class="tbtns"><b>_</b><b>□</b><b>×</b></span>
+      </div>
+      <div class="menubar"><u>И</u>гра <u>М</u>одули <u>С</u>правка</div>
+
+      <div class="content">
+        <section class="game-col">
+          <div class="header bevel-in">
+            <div class="lcd" id="lcd-clicks" title="Батарея (клики)">020</div>
+            <button class="smiley bevel-out" id="smiley" title=""></button>
+            <div class="lcd wide" id="lcd-score" title="Очки">000000</div>
+          </div>
+          <div class="target bevel-in">
+            <i id="target-fill"></i>
+            <span id="target-text"></span>
+          </div>
+          <div class="board-frame bevel-in"><div id="board"></div></div>
+        </section>
+
+        <aside class="side">
+          <fieldset>
+            <legend>Score Engine</legend>
+            <div id="turn" class="turn"></div>
+          </fieldset>
+          <fieldset>
+            <legend>Системы</legend>
+            <div class="stats">
+              <span>Корпус</span><b id="hull"></b>
+              <span>Комбо</span><b id="combo"></b>
+              <span>Bits</span><b id="bits"></b>
+            </div>
+          </fieldset>
+          <fieldset class="mods">
+            <legend>Модули</legend>
+            <div id="modules"></div>
+          </fieldset>
+        </aside>
+      </div>
+
+      <div class="statusbar">
+        <span class="bevel-in" id="status-stage"></span>
+        <span class="bevel-in grow" id="status-hint"></span>
+      </div>
     </div>
+
+    <div id="fx"></div>
     <div id="overlay" hidden></div>
     <div class="crt"></div>
     <script type="module" src="/src/main.ts"></script>
