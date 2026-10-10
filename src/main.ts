@@ -143,7 +143,7 @@ function wire(g: Game) {
           sfx.boom();
           view.kick();
           if (t.comboBroken) sfx.breakCombo();
-          fx.burst(p.x, p.y, `<span class="hurt-main">💥 -1 HP</span>`, 'hurt');
+          fx.burst(p.x, p.y, `<span class="hurt-main">💥 -1 HP</span><small style="color:#ff6666;font-weight:bold;">СЧЁТ СБРОШЕН В 0</small>`, 'hurt');
         }
         if (t.score > 0) {
           const big = t.score >= g.target * 0.25;

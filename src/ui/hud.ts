@@ -270,15 +270,47 @@ export class Hud {
     const el = $('overlay');
     if (g.status !== 'lost' && g.status !== 'victory') return void (el.hidden = true);
     el.hidden = false;
-    const [title, icon, text] =
-      g.status === 'lost'
-        ? ['Сигнал потерян', '⚠', `Сектор ${g.sector}, счёт ${g.score} / ${g.target}`]
-        : ['Миссия выполнена', 'ℹ', `Все глубины пройдены. Bits: ${g.bits}`];
-    el.innerHTML = `<div class="window dialog">
-      <div class="titlebar"><span class="title">${title}</span><span class="tbtns"><b>×</b></span></div>
-      <div class="dialog-body"><span class="dicon">${icon}</span><p>${text}</p></div>
-      <div class="dialog-btns"><button class="btn bevel-out" data-action="restart">Новый забег</button></div>
-    </div>`;
+
+    if (g.status === 'lost') {
+      let reasonText = 'Сектор не зачищен';
+      let reasonSub = '';
+      if (g.lossReason === 'clicks') {
+        reasonText = 'Кончились клики';
+        reasonSub = 'Батарея сканера полностью разряжена (0 кликов)';
+      } else if (g.lossReason === 'hull') {
+        reasonText = 'Кончился корпус / жизни';
+        reasonSub = 'Критический урон от подрыва мины (0 HP)';
+      } else if (g.lossReason === 'cashout') {
+        reasonText = 'Авария детонатора';
+        reasonSub = 'Ложный флаг вызвал детонацию и разрушил корпус (0 HP)';
+      }
+
+      el.innerHTML = `<div class="window dialog">
+        <div class="titlebar"><span class="title">Сигнал потерян</span><span class="tbtns"><b>×</b></span></div>
+        <div class="dialog-body">
+          <span class="dicon">⚠</span>
+          <div class="dialog-content">
+            <div class="loss-reason-badge">ПРИЧИНА ПОРАЖЕНИЯ:</div>
+            <div class="loss-reason-main">${reasonText}</div>
+            <div class="loss-reason-sub">${reasonSub}</div>
+            <div class="loss-stats">Сектор ${g.sector} · Счёт: ${g.score} / ${g.target}</div>
+          </div>
+        </div>
+        <div class="dialog-btns"><button class="btn bevel-out" data-action="restart">Новый забег</button></div>
+      </div>`;
+    } else {
+      el.innerHTML = `<div class="window dialog">
+        <div class="titlebar"><span class="title">Миссия выполнена</span><span class="tbtns"><b>×</b></span></div>
+        <div class="dialog-body">
+          <span class="dicon">👑</span>
+          <div class="dialog-content">
+            <div class="win-title">ВСЕ СЕКТОРЫ ЗАЧИЩЕНЫ!</div>
+            <p>Вы прошли все глубины. Накоплено Bits: <b>${g.bits}</b></p>
+          </div>
+        </div>
+        <div class="dialog-btns"><button class="btn bevel-out" data-action="restart">Новый забег</button></div>
+      </div>`;
+    }
   }
 
   flashModule(id: string): void {

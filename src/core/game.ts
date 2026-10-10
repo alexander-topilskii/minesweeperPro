@@ -55,6 +55,8 @@ export class Game {
   cleared = false;
   overchargeLevel = 0;
   status: RoundStatus = 'playing';
+  /** Explicit reason for game over (loss) */
+  lossReason?: 'clicks' | 'hull' | 'cashout';
   lastTurn?: TurnResult;
   /** True while the sequential cashout lever validation roll is active. */
   isCashoutRolling = false;
@@ -124,6 +126,7 @@ export class Game {
     this.roundState = {};
     this.lastTurn = undefined;
     this.isCashoutRolling = false;
+    this.lossReason = undefined;
     this.status = 'playing';
     this.runHook('onRoundStart', (h) => h(this));
     this.emit({ type: 'newBoard' });
@@ -303,6 +306,7 @@ export class Game {
     this.combo = 0;
     this.isCashoutRolling = false;
     if (this.hull <= 0) {
+      this.lossReason = 'cashout';
       this.status = 'lost';
     }
     this.emit({ type: 'change' });
@@ -437,18 +441,22 @@ export class Game {
   }
 
   private endTurn(ctx: TurnContext, origin: Cell): void {
-    const score = Math.round(ctx.data * ctx.mult * ctx.xMult);
-    this.score += score;
+    let score = Math.round(ctx.data * ctx.mult * ctx.xMult);
 
     const prevCombo = this.combo;
     let comboBroken = false;
     if (ctx.exploded) {
-      if (prevCombo >= 2) {
-        comboBroken = true;
-        ctx.callouts.unshift(`СЕРИЯ СБИТА! (-${(prevCombo * CONFIG.comboMultStep).toFixed(1)} Mult)`);
-      }
+      // Hitting a mine wipes out all round points and combo/bonus multipliers
+      this.score = 0;
       this.combo = 0;
+      this.roundMult = 0;
+      this.cleared = false;
+      this.overchargeLevel = 0;
+      score = 0;
+      comboBroken = prevCombo >= 1;
+      ctx.callouts.unshift('💥 ПОДРЫВ! ОЧКИ И БОНУСЫ СБРОШЕНЫ В 0');
     } else {
+      this.score += score;
       this.combo = prevCombo + 1;
       if (this.combo >= 2) {
         const bonusStr = (this.combo * CONFIG.comboMultStep).toFixed(1);
@@ -493,6 +501,14 @@ export class Game {
 
   private endRound(): void {
     if (!this.cleared) {
+      if (this.hull <= 0) {
+        this.lossReason = 'hull';
+      } else if (this.clicks <= 0) {
+        this.lossReason = 'clicks';
+      } else {
+        // Safe tiles exhausted but target not met
+        this.lossReason = 'clicks';
+      }
       this.status = 'lost';
       return;
     }
