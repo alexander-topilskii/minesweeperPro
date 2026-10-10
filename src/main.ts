@@ -73,23 +73,17 @@ function wire(g: Game) {
       case 'turn': {
         const t = e.result;
         const p = cellScreen(t.origin.x, t.origin.y);
-        const boardRect = boardEl.getBoundingClientRect();
-
-        // Offset popup to the side and slightly above cell so cursor or finger does not obscure it
-        const isNearRightEdge = p.x > boardRect.right - 140;
-        const offsetX = isNearRightEdge ? p.x - 56 : p.x + 56;
-        const offsetY = Math.max(boardRect.top + 32, Math.min(boardRect.bottom - 45, p.y - 24));
 
         if (t.exploded) {
           sfx.boom();
           view.kick();
-          fx.float(offsetX, offsetY, '💥 -1 HP', 'hurt');
+          fx.burst(p.x, p.y, '💥 -1 HP', 'hurt');
         }
         if (t.score > 0) {
           const big = t.score >= g.target * 0.25;
-          fx.float(
-            offsetX,
-            offsetY,
+          fx.burst(
+            p.x,
+            p.y,
             `+${t.score}<small>${t.data} × ${t.mult.toFixed(1)}</small>`,
             big ? 'score big' : 'score',
           );
