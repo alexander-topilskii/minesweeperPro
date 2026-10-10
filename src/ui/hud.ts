@@ -5,6 +5,15 @@ const $ = (id: string) => document.getElementById(id)!;
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 const pad = (n: number, len: number) => String(Math.max(0, Math.min(n, 10 ** len - 1))).padStart(len, '0');
 
+function clicksRemainingText(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 19) return `осталось ${n} кликов`;
+  if (mod10 === 1) return `остался ${n} клик`;
+  if (mod10 >= 2 && mod10 <= 4) return `осталось ${n} клика`;
+  return `осталось ${n} кликов`;
+}
+
 /** DOM HUD in classic Minesweeper window chrome. */
 export class Hud {
   private displayedScore = 0;
@@ -77,6 +86,7 @@ export class Hud {
 
     $('lcd-clicks').textContent = pad(g.clicks, 3);
     $('lcd-clicks').classList.toggle('low', g.clicks <= 3);
+    $('lcd-clicks').title = clicksRemainingText(g.clicks);
     $('lcd-score').textContent = pad(this.displayedScore, 6);
 
     const smiley = $('smiley');
@@ -231,7 +241,7 @@ export class Hud {
       let reasonSub = '';
       if (g.lossReason === 'clicks') {
         reasonText = 'Кончились клики';
-        reasonSub = 'Батарея сканера полностью разряжена (0 кликов)';
+        reasonSub = 'Закончились все доступные клики (осталось 0 кликов)';
       } else if (g.lossReason === 'hull') {
         reasonText = 'Кончились жизни (HP)';
         reasonSub = 'Подрыв на мине (0 HP)';
@@ -297,8 +307,8 @@ export class Hud {
                 <b class="highlight-score">${g.score} / ${g.target}</b>
               </div>
               <div class="stat-row">
-                <span>Батарея сканера:</span>
-                <b class="highlight-clicks">${g.clicks} кликов</b>
+                <span>Клики:</span>
+                <b class="highlight-clicks">${clicksRemainingText(g.clicks)}</b>
               </div>
               <div class="stat-row">
                 <span>Награда:</span>

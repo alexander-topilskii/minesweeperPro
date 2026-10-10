@@ -188,7 +188,7 @@ export const MODULES: ModuleDef[] = [
     id: 'MOD-RUL-06',
     name: 'Сверхпроводник',
     nameEn: 'Superconductor',
-    description: 'Каскад нулей → +1 клик батареи',
+    description: 'Каскад нулей → +1 клик',
     category: 'RUL',
     rarity: 'uncommon',
     cost: 7,
