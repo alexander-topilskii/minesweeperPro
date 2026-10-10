@@ -22,9 +22,14 @@
             <button class="smiley bevel-out" id="smiley" title=""></button>
             <div class="lcd wide" id="lcd-score" title="Очки">000000</div>
           </div>
-          <div class="target bevel-in">
-            <i id="target-fill"></i>
-            <span id="target-text"></span>
+          <div class="target-container">
+            <div class="target bevel-in">
+              <i id="target-fill"></i>
+              <span id="target-text"></span>
+            </div>
+            <button class="btn-advance bevel-out" id="btn-advance" hidden title="Забрать награду и перейти в Торговый пост">
+              🏁 В МАГАЗИН (<span id="advance-bits">+0</span> BITS)
+            </button>
           </div>
           <div class="board-stage">
             <div class="board-frame bevel-in"><div id="board"></div></div>

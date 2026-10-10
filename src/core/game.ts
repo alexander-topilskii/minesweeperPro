@@ -35,6 +35,7 @@ export type GameEvent =
   | { type: 'change' }
   | { type: 'turn'; result: TurnResult }
   | { type: 'cleared' }
+  | { type: 'overchargeUp'; level: number }
   | { type: 'roundEnd'; summary: RoundSummary }
   | { type: 'moduleFired'; id: string }
   | { type: 'newBoard' };
@@ -52,6 +53,7 @@ export class Game {
   roundMult = 0;
   /** Target reached this round; play continues for overcharge until resources run out or player advances. */
   cleared = false;
+  overchargeLevel = 0;
   status: RoundStatus = 'playing';
   lastTurn?: TurnResult;
   /** True while the sequential cashout lever validation roll is active. */
@@ -117,6 +119,7 @@ export class Game {
     this.combo = 0;
     this.roundMult = 0;
     this.cleared = false;
+    this.overchargeLevel = 0;
     this.activeConsumableIdx = undefined;
     this.roundState = {};
     this.lastTurn = undefined;
@@ -343,9 +346,16 @@ export class Game {
     if (flaggedCells.length >= 6) this.bits += 2;
     else if (flaggedCells.length >= 3) this.bits += 1;
 
-    if (this.score >= this.target) {
+    if (!this.cleared && this.score >= this.target) {
       this.cleared = true;
       this.emit({ type: 'cleared' });
+    }
+    if (this.cleared) {
+      const newLvl = Math.max(0, Math.floor((this.score - this.target) / (this.target * CONFIG.overchargeBitStep)));
+      if (newLvl > this.overchargeLevel) {
+        this.overchargeLevel = newLvl;
+        this.emit({ type: 'overchargeUp', level: newLvl });
+      }
     }
     if (this.board.safeRemaining() === 0) {
       this.cleared = true;
@@ -469,6 +479,13 @@ export class Game {
     if (!this.cleared && this.score >= this.target) {
       this.cleared = true;
       this.emit({ type: 'cleared' });
+    }
+    if (this.cleared) {
+      const newLvl = Math.max(0, Math.floor((this.score - this.target) / (this.target * CONFIG.overchargeBitStep)));
+      if (newLvl > this.overchargeLevel) {
+        this.overchargeLevel = newLvl;
+        this.emit({ type: 'overchargeUp', level: newLvl });
+      }
     }
     if (this.hull <= 0 || this.clicks <= 0 || this.board.safeRemaining() === 0) this.endRound();
     this.emit({ type: 'change' });

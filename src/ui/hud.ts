@@ -32,6 +32,7 @@ export class Hud {
 
     $('lever-handle')?.addEventListener('click', () => this.actions.onPullLever());
     $('btn-lever-slam')?.addEventListener('click', () => this.actions.onPullLever());
+    $('btn-advance')?.addEventListener('click', () => this.actions.smiley());
 
     requestAnimationFrame(this.tick);
   }
@@ -74,9 +75,27 @@ export class Hud {
 
     const pct = Math.min(100, (g.score / g.target) * 100);
     $('target-fill').style.width = `${pct}%`;
-    $('target-text').textContent = g.cleared
-      ? `OVERCHARGE ${Math.round((g.score / g.target) * 100)}%`
-      : `ЦЕЛЬ ${g.target}`;
+
+    const overchargeLvl = Math.max(0, Math.floor((g.score - g.target) / (g.target * CONFIG.overchargeBitStep)));
+    const nextOverchargePct = 100 + (overchargeLvl + 1) * Math.round(CONFIG.overchargeBitStep * 100);
+    const bitsReward = CONFIG.bitsPerWin + g.clicks * CONFIG.bitsPerClickLeft + overchargeLvl;
+
+    if (g.cleared) {
+      const currentPct = Math.round((g.score / g.target) * 100);
+      $('target-text').textContent = overchargeLvl > 0
+        ? `⚡ OVERCHARGE ${currentPct}% [УР.${overchargeLvl}: +${overchargeLvl} BITS] · СЛЕДУЮЩИЙ: ${nextOverchargePct}%`
+        : `⚡ OVERCHARGE ${currentPct}% · СЛЕДУЮЩИЙ BIT НА ${nextOverchargePct}%`;
+    } else {
+      $('target-text').textContent = `ЦЕЛЬ: ${g.score} / ${g.target} (${Math.round((g.score / g.target) * 100)}%)`;
+    }
+
+    const btnAdvance = $('btn-advance');
+    if (btnAdvance) {
+      btnAdvance.hidden = !g.cleared || g.status !== 'playing';
+      const advBits = $('advance-bits');
+      if (advBits) advBits.textContent = `+${bitsReward}`;
+    }
+
     document.body.classList.toggle('cleared', g.cleared);
 
     $('turn').innerHTML = this.turnHtml(g.lastTurn);

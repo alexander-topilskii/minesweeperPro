@@ -169,8 +169,14 @@ function wire(g: Game) {
         break;
       }
       case 'cleared':
-        fx.banner(boardEl, 'СЕКТОР ОЧИЩЕН', 'rainbow');
-        sfx.cascade(10);
+        fx.banner(boardEl, 'ЦЕЛЬ ВЫПОЛНЕНА!\nСЕКТОР ПРОЙДЕН', 'rainbow');
+        sfx.jackpotFanfare();
+        hud.showBonus(['🎉 ЦЕЛЬ ВЫПОЛНЕНА!', '🏁 В МАГАЗИН ИЛИ НАБИВАЙТЕ OVERCHARGE!'], false);
+        break;
+      case 'overchargeUp':
+        fx.banner(boardEl, `⚡ OVERCHARGE УР. ${e.level}!\n+1 EXTRA BIT`, 'bits');
+        sfx.cascade(8);
+        hud.showBonus([`⚡ OVERCHARGE УР. ${e.level}!`, `+1 БОНУСНЫЙ BIT ДЛЯ МАГАЗИНА`], false);
         break;
       case 'roundEnd':
         fx.banner(boardEl, `+${e.summary.bits} BITS<small>${e.summary.score} / ${e.summary.target}</small>`, 'bits');
