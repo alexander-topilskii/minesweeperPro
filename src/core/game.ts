@@ -307,7 +307,7 @@ export class Game {
     return this.board.cells.filter((c) => c.slotFlag && !c.revealed);
   }
 
-  /** Resolves false slot machine flag penalty: cell explodes/wrong, -1 HP, score reset to 0 */
+  /** Resolves false slot machine flag penalty: cell explodes/wrong, -1 HP, 40% score lost, combo reset */
   resolveSlotBust(faultCell: Cell): void {
     faultCell.slotFlag = false;
     faultCell.flagged = false;
@@ -315,10 +315,16 @@ export class Game {
     faultCell.wrong = true;
     faultCell.exploded = true;
     this.hull--;
-    this.score = 0;
+
+    // 40% score penalty instead of full zero-wipe
+    const penalty = Math.round(this.score * 0.4);
+    this.score = Math.max(0, this.score - penalty);
     this.combo = 0;
     this.roundMult = 0;
-    this.cleared = false;
+    if (this.score < this.target) {
+      this.cleared = false;
+      this.overchargeLevel = 0;
+    }
     this.isCashoutRolling = false;
     if (this.hull <= 0) {
       this.lossReason = 'hull';
@@ -532,15 +538,18 @@ export class Game {
     const prevCombo = this.combo;
     let comboBroken = false;
     if (ctx.exploded) {
-      // Hitting a mine wipes out all round points and combo/bonus multipliers
-      this.score = 0;
+      // Hitting a mine costs 1 HP, cuts 40% of accumulated round score, and breaks combo streak
+      const penalty = Math.round(this.score * 0.4);
+      this.score = Math.max(0, this.score - penalty);
       this.combo = 0;
       this.roundMult = 0;
-      this.cleared = false;
-      this.overchargeLevel = 0;
+      if (this.score < this.target) {
+        this.cleared = false;
+        this.overchargeLevel = 0;
+      }
       score = 0;
       comboBroken = prevCombo >= 1;
-      ctx.callouts.unshift('💥 ПОДРЫВ! ОЧКИ И БОНУСЫ СБРОШЕНЫ В 0');
+      ctx.callouts.unshift(penalty > 0 ? `💥 ПОДРЫВ! -40% ОЧКОВ (-${penalty}) · СЕРИЯ СБИТА` : '💥 ПОДРЫВ! -1 HP · СЕРИЯ СБИТА');
     } else {
       this.score += score;
       this.combo = prevCombo + 1;
