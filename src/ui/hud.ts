@@ -211,11 +211,11 @@ export class Hud {
         reasonText = 'Кончились клики';
         reasonSub = 'Батарея сканера полностью разряжена (0 кликов)';
       } else if (g.lossReason === 'hull') {
-        reasonText = 'Кончился корпус / жизни';
-        reasonSub = 'Критический урон от подрыва мины (0 HP)';
+        reasonText = 'Кончились жизни (HP)';
+        reasonSub = 'Подрыв на мине (0 HP)';
       } else if (g.lossReason === 'cashout') {
         reasonText = 'Авария детонатора';
-        reasonSub = 'Ложный флаг вызвал детонацию и разрушил корпус (0 HP)';
+        reasonSub = 'Ложный флаг вызвал детонацию (0 HP)';
       }
 
       el.innerHTML = `<div class="window dialog">

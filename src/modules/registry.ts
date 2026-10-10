@@ -245,7 +245,7 @@ export const MODULES: ModuleDef[] = [
     id: 'MOD-HAZ-02',
     name: 'Адреналиновый насос',
     nameEn: 'Critical Threshold',
-    description: 'Пока ровно 1 HP корпуса, весь счет хода ×2',
+    description: 'Пока ровно 1 HP, весь счет хода ×2',
     category: 'HAZ',
     rarity: 'uncommon',
     cost: 6,

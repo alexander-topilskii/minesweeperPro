@@ -4,7 +4,7 @@ export const CONFIG = {
   baseMines: 15,
   minesPerStage: 1,
   clicks: 25,
-  hull: 3,
+  hull: 1,
   moduleSlots: 5,
   consumableSlots: 3,
   rerollBaseCost: 3,
