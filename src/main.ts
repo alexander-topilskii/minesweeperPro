@@ -1,12 +1,12 @@
 import { Game } from './core/game';
-import { CONFIG } from './config';
 import { getModule } from './modules/registry';
 import { BoardView } from './render/boardView';
 import { Hud } from './ui/hud';
+import { ShopView } from './ui/shopView';
 import { Fx } from './ui/fx';
 import { Sfx } from './audio/sfx';
 
-/** Starter loadout until the shop exists. */
+/** Starter loadout. */
 const STARTER = ['MOD-VAL-01', 'MOD-RUL-06', 'MOD-HAZ-01'];
 
 const boardEl = document.getElementById('board')!;
@@ -19,12 +19,26 @@ const view = new BoardView(boardEl, (x, y, action) => {
   else game.click(x, y);
 });
 
+const shopView = new ShopView(game, {
+  onStartStage: () => {
+    game.nextStage();
+  },
+  onBuy: () => {
+    sfx.click();
+  },
+  onReroll: () => {
+    sfx.relay();
+  },
+});
+
 const restart = () => {
   game = new Game(STARTER.map(getModule));
   wire(game);
   hud.setGame(game);
+  shopView.setGame(game);
   view.build(game.board);
   hud.render();
+  shopView.render();
 };
 
 const hud = new Hud(game, {
@@ -33,6 +47,14 @@ const hud = new Hud(game, {
     else game.advance();
   },
   restart,
+  onUseConsumable: (idx) => {
+    const success = game.useConsumable(idx);
+    if (success) {
+      sfx.cascade(5);
+    } else {
+      sfx.click();
+    }
+  },
 });
 
 function cellScreen(x: number, y: number) {
@@ -70,7 +92,15 @@ function wire(g: Game) {
         break;
       case 'roundEnd':
         fx.banner(boardEl, `+${e.summary.bits} BITS<small>${e.summary.score} / ${e.summary.target}</small>`, 'bits');
-        if (g.status === 'transition') setTimeout(() => g === game && g.nextStage(), CONFIG.stageTransitionMs);
+        if (g.status === 'shop') {
+          setTimeout(() => {
+            if (g === game && g.status === 'shop') {
+              sfx.relay();
+              hud.render();
+              shopView.render();
+            }
+          }, 1100);
+        }
         break;
       case 'moduleFired':
         hud.flashModule(e.id);
@@ -79,6 +109,7 @@ function wire(g: Game) {
       case 'change':
         view.sync();
         hud.render();
+        if (g.status === 'shop') shopView.render();
         break;
     }
   });
@@ -87,3 +118,4 @@ function wire(g: Game) {
 wire(game);
 view.build(game.board);
 hud.render();
+shopView.render();

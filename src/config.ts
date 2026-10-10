@@ -6,6 +6,8 @@ export const CONFIG = {
   clicks: 20,
   hull: 3,
   moduleSlots: 5,
+  consumableSlots: 2,
+  rerollBaseCost: 3,
 
   /** Data for opening an empty (0) cell. */
   zeroData: 1,

@@ -25,11 +25,27 @@ export interface ModuleHooks {
   onRoundEnd(g: Game): void;
 }
 
+export type ModuleCategory = 'VAL' | 'SCL' | 'RUL' | 'HAZ' | 'ECO' | 'LEG';
+export type Rarity = 'common' | 'uncommon' | 'rare';
+
 export interface ModuleDef {
   /** Stable ID from docs/content/modules (e.g. MOD-VAL-01). */
   id: string;
   name: string;
   nameEn: string;
   description: string;
+  category: ModuleCategory;
+  rarity: Rarity;
+  cost: number;
   hooks: Partial<ModuleHooks>;
+}
+
+export interface ConsumableDef {
+  id: string;
+  name: string;
+  nameEn: string;
+  description: string;
+  cost: number;
+  targetType: 'instant' | 'cell';
+  use(game: Game, targetCell?: Cell): boolean;
 }

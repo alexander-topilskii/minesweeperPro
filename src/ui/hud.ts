@@ -11,12 +11,20 @@ export class Hud {
 
   constructor(
     private game: Game,
-    private actions: { smiley(): void; restart(): void },
+    private actions: { smiley(): void; restart(): void; onUseConsumable(idx: number): void },
   ) {
     $('smiley').addEventListener('click', () => this.actions.smiley());
     $('overlay').addEventListener('click', (e) => {
       if ((e.target as HTMLElement).closest('[data-action="restart"]')) this.actions.restart();
     });
+
+    $('consumables').addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('[data-con-idx]') as HTMLElement | null;
+      if (!btn) return;
+      const idx = Number(btn.dataset.conIdx);
+      this.actions.onUseConsumable(idx);
+    });
+
     requestAnimationFrame(this.tick);
   }
 
@@ -40,13 +48,19 @@ export class Hud {
 
   render(): void {
     const g = this.game;
+
+    // View toggle between game and shop
+    const isShop = g.status === 'shop';
+    $('game-view').hidden = isShop;
+    $('shop-view').hidden = !isShop;
+
     $('lcd-clicks').textContent = pad(g.clicks, 3);
     $('lcd-clicks').classList.toggle('low', g.clicks <= 3);
     $('lcd-score').textContent = pad(this.displayedScore, 6);
 
     const smiley = $('smiley');
     smiley.dataset.state = g.status === 'lost' ? 'dead' : g.cleared ? 'cool' : 'normal';
-    smiley.title = g.cleared && g.status === 'playing' ? 'Забрать награду и перейти дальше' : g.status === 'lost' ? 'Новый забег' : '';
+    smiley.title = g.cleared && g.status === 'playing' ? 'Забрать награду и перейти в Магазин' : g.status === 'lost' ? 'Новый забег' : '';
 
     const pct = Math.min(100, (g.score / g.target) * 100);
     $('target-fill').style.width = `${pct}%`;
@@ -60,6 +74,20 @@ export class Hud {
     $('combo').textContent = `${g.combo}  (+${fmt(g.combo * CONFIG.comboMultStep)})`;
     $('bits').textContent = String(g.bits);
 
+    // Consumables list in side panel
+    $('consumables').innerHTML = Array.from({ length: CONFIG.consumableSlots }, (_, i) => {
+      const c = g.consumables[i];
+      if (!c) return `<div class="con-slot empty">пусто</div>`;
+      const isPrimed = g.activeConsumableIdx === i;
+      return `
+        <button class="con-slot bevel-out ${isPrimed ? 'primed' : ''}" data-con-idx="${i}" title="${c.description}">
+          <b>${c.name}</b>
+          <small>${isPrimed ? '⚡ КЛИКНИТЕ КЛЕТКУ' : c.targetType === 'cell' ? '🎯 ПРИЦЕЛ' : '⚡ АКТИВИРОВАТЬ'}</small>
+        </button>
+      `;
+    }).join('');
+
+    // Modules list
     $('modules').innerHTML = Array.from({ length: CONFIG.moduleSlots }, (_, i) => {
       const m = g.modules[i];
       return m
@@ -67,11 +95,18 @@ export class Hud {
         : `<div class="module empty">пустой слот</div>`;
     }).join('');
 
-    $('status-stage').textContent = `Сектор ${g.sector}/${CONFIG.sectors} · ${g.stageName}`;
-    $('status-hint').textContent =
-      g.cleared && g.status === 'playing'
-        ? '😎 — забрать награду (остаток кликов → Bits) или продолжай копить Overcharge'
-        : 'ЛКМ — скан · ПКМ/удержание — флаг · клик по цифре — аккорд';
+    $('status-stage').textContent = isShop
+      ? `Торговый пост Сектора ${g.sector}`
+      : `Сектор ${g.sector}/${CONFIG.sectors} · ${g.stageName}`;
+
+    if (g.activeConsumableIdx !== undefined) {
+      const con = g.consumables[g.activeConsumableIdx];
+      $('status-hint').textContent = `🎯 [РЕЖИМ ПРИЦЕЛА]: Выберите закрытую клетку для применения «${con?.name}» (ПКМ для отмены)`;
+    } else if (g.cleared && g.status === 'playing') {
+      $('status-hint').textContent = '😎 — нажми смайлик для перехода в Магазин или набивай Overcharge дальше!';
+    } else {
+      $('status-hint').textContent = 'ЛКМ — скан · ПКМ/удержание — флаг · клик по цифре — аккорд';
+    }
 
     this.renderOverlay();
   }

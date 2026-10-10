@@ -14,7 +14,8 @@
       </div>
       <div class="menubar"><u>И</u>гра <u>М</u>одули <u>С</u>правка</div>
 
-      <div class="content">
+      <!-- MAIN GAME VIEW -->
+      <div class="content" id="game-view">
         <section class="game-col">
           <div class="header bevel-in">
             <div class="lcd" id="lcd-clicks" title="Батарея (клики)">020</div>
@@ -41,11 +42,69 @@
               <span>Bits</span><b id="bits"></b>
             </div>
           </fieldset>
+          <fieldset class="cons">
+            <legend>Расходники (макс 2)</legend>
+            <div id="consumables" class="consumables-list"></div>
+          </fieldset>
           <fieldset class="mods">
-            <legend>Модули</legend>
+            <legend>Модули (макс 5)</legend>
             <div id="modules"></div>
           </fieldset>
         </aside>
+      </div>
+
+      <!-- SHOP VIEW -->
+      <div class="content shop-view" id="shop-view" hidden>
+        <div class="shop-container">
+          <div class="shop-header bevel-in">
+            <div class="shop-title">ТОРГОВЫЙ ПОСТ СЕКТОРА <span id="shop-sector">1</span></div>
+            <div class="shop-balance">
+              <span class="label">БАЛАНС BITS:</span>
+              <div class="lcd" id="shop-bits">000</div>
+            </div>
+          </div>
+
+          <div class="shop-grid">
+            <!-- SHOP OFFERS -->
+            <fieldset class="shop-section">
+              <legend>Витрина Модулей</legend>
+              <div class="offers-grid" id="shop-module-offers"></div>
+            </fieldset>
+
+            <fieldset class="shop-section">
+              <legend>Витрина Расходников</legend>
+              <div class="offers-grid" id="shop-cons-offers"></div>
+            </fieldset>
+          </div>
+
+          <!-- INVENTORY & SELL -->
+          <fieldset class="shop-inventory">
+            <legend>Установленные Модули и Снаряжение</legend>
+            <div class="inv-columns">
+              <div>
+                <div class="inv-label">Модули игрока (<span id="shop-mod-count">0</span>/5):</div>
+                <div class="inv-items" id="shop-player-modules"></div>
+              </div>
+              <div>
+                <div class="inv-label">Расходники (<span id="shop-con-count">0</span>/2):</div>
+                <div class="inv-items" id="shop-player-consumables"></div>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- BOTTOM ACTION BAR -->
+          <div class="shop-bottom bevel-in">
+            <button class="btn bevel-out btn-reroll" id="btn-reroll">
+              🎲 ОБНОВИТЬ ВИТРИНУ (<span id="reroll-cost">3</span> BITS)
+            </button>
+            <div class="shop-next-preview" id="shop-next-info">
+              След: <b id="shop-next-name">Глубокий сканер</b> | Цель: <b id="shop-next-target">960</b> | Мин: <b id="shop-next-mines">18</b>
+            </div>
+            <button class="btn bevel-out btn-start-stage" id="btn-start-stage">
+              В БОЙ ▶
+            </button>
+          </div>
+        </div>
       </div>
 
       <div class="statusbar">

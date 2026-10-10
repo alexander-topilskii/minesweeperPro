@@ -1,14 +1,16 @@
 import { Board, type Cell } from './board';
 import { CONFIG, minesFor, targetFor } from '../config';
-import type { ModuleDef, ModuleHooks, TurnContext } from './types';
+import type { ConsumableDef, ModuleDef, ModuleHooks, TurnContext } from './types';
+import { MODULES, sellValue } from '../modules/registry';
+import { CONSUMABLES } from '../modules/consumables';
 
 /**
- * playing    — round in progress (target may already be reached — see `cleared`)
- * transition — round banked, next stage is about to start
- * lost       — round ended below target, run over
- * victory    — all sectors done
+ * playing — round in progress (target may already be reached — see `cleared`)
+ * shop    — shop phase between rounds: buy/sell modules & consumables, reroll, view next stage
+ * lost    — round ended below target, run over
+ * victory — all sectors done
  */
-export type RoundStatus = 'playing' | 'transition' | 'lost' | 'victory';
+export type RoundStatus = 'playing' | 'shop' | 'lost' | 'victory';
 
 export interface TurnResult {
   data: number;
@@ -40,7 +42,7 @@ export class Game {
   score = 0;
   target = 0;
   clicks = 0;
-  hull = CONFIG.hull;
+  hull: number = CONFIG.hull;
   bits = 0;
   combo = 0;
   /** Permanent-for-round additive Mult (e.g. Extremum). */
@@ -51,6 +53,18 @@ export class Game {
   lastTurn?: TurnResult;
   /** Per-round scratch state for modules, keyed by module id. */
   roundState: Record<string, unknown> = {};
+
+  /** Consumables in player inventory (max CONFIG.consumableSlots). */
+  consumables: ConsumableDef[] = [];
+  /** If a consumable requires clicking a tile, its index in `consumables`. */
+  activeConsumableIdx?: number;
+
+  /** Shop items available between rounds. */
+  shopOffers: {
+    modules: ModuleDef[];
+    consumables: ConsumableDef[];
+  } = { modules: [], consumables: [] };
+  rerollCost: number = CONFIG.rerollBaseCost;
 
   private listeners = new Set<(e: GameEvent) => void>();
 
@@ -90,6 +104,7 @@ export class Game {
     this.combo = 0;
     this.roundMult = 0;
     this.cleared = false;
+    this.activeConsumableIdx = undefined;
     this.roundState = {};
     this.lastTurn = undefined;
     this.status = 'playing';
@@ -99,7 +114,9 @@ export class Game {
   }
 
   nextStage(): void {
-    if (this.status === 'transition') this.startStage(this.stage + 1);
+    if (this.status === 'shop') {
+      this.startStage(this.stage + 1);
+    }
   }
 
   /** Player chooses to bank early (keeps leftover clicks as Bits). */
@@ -110,16 +127,125 @@ export class Game {
     }
   }
 
-  // ---------- Player actions ----------
+  // ---------- Shop Operations ----------
+
+  generateShop(): void {
+    const ownedIds = new Set(this.modules.map((m) => m.id));
+    const availableModules = MODULES.filter((m) => !ownedIds.has(m.id));
+
+    // Shuffle & pick 2-3 modules
+    const shuffledModules = [...availableModules].sort(() => Math.random() - 0.5);
+    const offerModules = shuffledModules.slice(0, Math.min(3, shuffledModules.length));
+
+    // Shuffle & pick 1-2 consumables
+    const shuffledCons = [...CONSUMABLES].sort(() => Math.random() - 0.5);
+    const offerConsumables = shuffledCons.slice(0, 2);
+
+    this.shopOffers = {
+      modules: offerModules,
+      consumables: offerConsumables,
+    };
+  }
+
+  rerollShop(): boolean {
+    if (this.bits < this.rerollCost) return false;
+    this.bits -= this.rerollCost;
+    this.rerollCost += 1;
+    this.generateShop();
+    this.emit({ type: 'change' });
+    return true;
+  }
+
+  buyModule(m: ModuleDef): boolean {
+    if (this.modules.length >= CONFIG.moduleSlots) return false;
+    if (this.bits < m.cost) return false;
+    this.bits -= m.cost;
+    this.modules.push(m);
+    this.shopOffers.modules = this.shopOffers.modules.filter((item) => item.id !== m.id);
+    this.emit({ type: 'change' });
+    return true;
+  }
+
+  sellModule(index: number): boolean {
+    if (index < 0 || index >= this.modules.length) return false;
+    const [mod] = this.modules.splice(index, 1);
+    this.bits += sellValue(mod.cost);
+    this.emit({ type: 'change' });
+    return true;
+  }
+
+  buyConsumable(c: ConsumableDef): boolean {
+    if (this.consumables.length >= CONFIG.consumableSlots) return false;
+    if (this.bits < c.cost) return false;
+    this.bits -= c.cost;
+    this.consumables.push(c);
+    this.shopOffers.consumables = this.shopOffers.consumables.filter((item) => item.id !== c.id);
+    this.emit({ type: 'change' });
+    return true;
+  }
+
+  sellConsumable(index: number): boolean {
+    if (index < 0 || index >= this.consumables.length) return false;
+    const [c] = this.consumables.splice(index, 1);
+    this.bits += sellValue(c.cost);
+    this.emit({ type: 'change' });
+    return true;
+  }
+
+  // ---------- Consumable Usage ----------
+
+  useConsumable(index: number, cell?: Cell): boolean {
+    if (index < 0 || index >= this.consumables.length) return false;
+    const c = this.consumables[index];
+    if (c.targetType === 'cell' && !cell) {
+      // Toggle targeting mode
+      if (this.activeConsumableIdx === index) {
+        this.activeConsumableIdx = undefined;
+      } else {
+        this.activeConsumableIdx = index;
+      }
+      this.emit({ type: 'change' });
+      return false;
+    }
+
+    const success = c.use(this, cell);
+    if (success) {
+      this.consumables.splice(index, 1);
+      this.activeConsumableIdx = undefined;
+      this.emit({ type: 'change' });
+    }
+    return success;
+  }
+
+  cancelTargetMode(): void {
+    if (this.activeConsumableIdx !== undefined) {
+      this.activeConsumableIdx = undefined;
+      this.emit({ type: 'change' });
+    }
+  }
+
+  // ---------- Player Actions ----------
 
   click(x: number, y: number): void {
     const cell = this.board.get(x, y);
-    if (!cell || this.status !== 'playing' || cell.flagged) return;
+    if (!cell || this.status !== 'playing') return;
+
+    // If consumable targeting mode is active:
+    if (this.activeConsumableIdx !== undefined) {
+      this.useConsumable(this.activeConsumableIdx, cell);
+      return;
+    }
+
+    if (cell.flagged) return;
     if (cell.revealed) this.chord(cell);
     else this.reveal(cell);
   }
 
   toggleFlag(x: number, y: number): void {
+    if (this.activeConsumableIdx !== undefined) {
+      this.cancelTargetMode();
+      return;
+    }
     const cell = this.board.get(x, y);
     if (!cell || this.status !== 'playing' || cell.revealed) return;
     cell.flagged = !cell.flagged;
@@ -149,7 +275,7 @@ export class Game {
     this.endTurn(ctx, cell);
   }
 
-  // ---------- Turn pipeline (openSafe is public so modules can trigger extra reveals) ----------
+  // ---------- Turn Pipeline ----------
 
   private beginTurn(): TurnContext {
     this.clicks--;
@@ -220,10 +346,17 @@ export class Game {
     this.score += correctFlags * CONFIG.flagRoundEndData;
     this.runHook('onRoundEnd', (h) => h(this));
     const overcharge = Math.floor((this.score - this.target) / (this.target * CONFIG.overchargeBitStep));
-    const bits = CONFIG.bitsPerWin + this.clicks * CONFIG.bitsPerClickLeft + Math.max(0, overcharge);
-    this.bits += bits;
-    this.status = this.stage + 1 >= CONFIG.sectors * 3 ? 'victory' : 'transition';
-    this.emit({ type: 'roundEnd', summary: { score: this.score, target: this.target, bits } });
+    const bitsEarned = CONFIG.bitsPerWin + this.clicks * CONFIG.bitsPerClickLeft + Math.max(0, overcharge);
+    this.bits += bitsEarned;
+
+    if (this.stage + 1 >= CONFIG.sectors * 3) {
+      this.status = 'victory';
+    } else {
+      this.status = 'shop';
+      this.rerollCost = CONFIG.rerollBaseCost;
+      this.generateShop();
+    }
+    this.emit({ type: 'roundEnd', summary: { score: this.score, target: this.target, bits: bitsEarned } });
   }
 
   private runHook<K extends keyof ModuleHooks>(name: K, call: (h: ModuleHooks[K]) => void): void {
