@@ -128,11 +128,13 @@ export class Hud {
       ? `Торговый пост Сектора ${g.sector}`
       : `Сектор ${g.sector}/${CONFIG.sectors} · ${g.stageName}`;
 
-    if (g.activeConsumableIdx !== undefined) {
+    if (isShop) {
+      $('status-hint').textContent = '🛒 Торговый пост: покупайте модули и расходники за Bits · Нажмите «В БОЙ ▶» для старта следующего этапа';
+    } else if (g.activeConsumableIdx !== undefined) {
       const con = g.consumables[g.activeConsumableIdx];
       $('status-hint').textContent = `🎯 [РЕЖИМ ПРИЦЕЛА]: Выберите закрытую клетку для применения «${con?.name}» (ПКМ для отмены)`;
     } else if (g.cleared && g.status === 'playing') {
-      $('status-hint').textContent = '😎 — нажми смайлик для перехода в Магазин или набивай Overcharge дальше!';
+      $('status-hint').textContent = '😎 — нажмите «В МАГАЗИН» для перехода к покупкам или набивайте Overcharge дальше!';
     } else {
       $('status-hint').textContent = 'ЛКМ — скан · ПКМ/удержание — флаг · клик по цифре — аккорд';
     }
