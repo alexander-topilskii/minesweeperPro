@@ -32,53 +32,10 @@
             </button>
           </div>
           <div class="board-stage">
-            <div class="board-frame bevel-in"><div id="board"></div></div>
-
-            <!-- Massive Mechanical Cashout Lever Chassis -->
-            <aside class="lever-chassis bevel-out" id="lever-chassis">
-              <div class="chassis-hazard"></div>
-              <div class="chassis-header">
-                <span class="chassis-title">CASHOUT</span>
-                <div class="lamp-housing">
-                  <div class="lamp" id="lever-lamp"></div>
-                  <span class="lamp-status" id="lever-status">ОЖИДАНИЕ</span>
-                </div>
-              </div>
-
-              <!-- The Mechanical Lever Knife-Switch Arm in vertical sunken slot -->
-              <div class="lever-slot bevel-in" id="lever-slot">
-                <div class="lever-track">
-                  <div class="lever-rail"></div>
-                  <button class="lever-handle bevel-out" id="lever-handle" disabled title="Потянуть рубильник детонатора">
-                    <div class="lever-shaft"></div>
-                    <div class="lever-knob">
-                      <span class="knob-cap"></span>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Retro Digital Staking Readouts -->
-              <div class="lever-readouts bevel-in">
-                <div class="readout-row">
-                  <span class="lbl">СТАВКА</span>
-                  <b class="val" id="lever-flags-count">0 🚩</b>
-                </div>
-                <div class="readout-row">
-                  <span class="lbl">КУШ MULT</span>
-                  <b class="val mult" id="lever-mult-val">×1.0</b>
-                </div>
-                <div class="readout-row total">
-                  <span class="lbl">КУШ СКОР</span>
-                  <b class="val pot" id="lever-pot-val">+0</b>
-                </div>
-              </div>
-
-              <!-- Big Slam Button -->
-              <button class="btn-slam bevel-out" id="btn-lever-slam" disabled>
-                ⚡ РУБИЛЬНИК
-              </button>
-            </aside>
+            <div class="board-frame bevel-in">
+              <div id="board-lights" class="board-lights"></div>
+              <div id="board"></div>
+            </div>
           </div>
         </section>
 
@@ -140,7 +97,7 @@
                 <div class="inv-items" id="shop-player-modules"></div>
               </div>
               <div>
-                <div class="inv-label">Расходники (<span id="shop-con-count">0</span>/2):</div>
+                <div class="inv-label">Расходники (<span id="shop-con-count">0</span>/3):</div>
                 <div class="inv-items" id="shop-player-consumables"></div>
               </div>
             </div>

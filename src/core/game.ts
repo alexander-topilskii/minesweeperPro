@@ -1,7 +1,7 @@
 import { Board, type Cell } from './board';
 import { CONFIG, cashoutMultiplier, cashoutScore, minesFor, targetFor } from '../config';
 import type { ConsumableDef, ModuleDef, ModuleHooks, TurnContext } from './types';
-import { MODULES, sellValue } from '../modules/registry';
+import { sellValue } from '../modules/registry';
 import { CONSUMABLES } from '../modules/consumables';
 
 /**
@@ -150,20 +150,11 @@ export class Game {
   // ---------- Shop Operations ----------
 
   generateShop(): void {
-    const ownedIds = new Set(this.modules.map((m) => m.id));
-    const availableModules = MODULES.filter((m) => !ownedIds.has(m.id));
-
-    // Shuffle & pick 2-3 modules
-    const shuffledModules = [...availableModules].sort(() => Math.random() - 0.5);
-    const offerModules = shuffledModules.slice(0, Math.min(3, shuffledModules.length));
-
-    // Shuffle & pick 1-2 consumables
-    const shuffledCons = [...CONSUMABLES].sort(() => Math.random() - 0.5);
-    const offerConsumables = shuffledCons.slice(0, 2);
-
+    // Only offer Slot Machine Flags in shop (player gathers slot flags)
+    const slotDef = CONSUMABLES.find((c) => c.id === 'CON-SLOT')!;
     this.shopOffers = {
-      modules: offerModules,
-      consumables: offerConsumables,
+      modules: [],
+      consumables: [slotDef],
     };
   }
 
@@ -256,19 +247,34 @@ export class Game {
       return;
     }
 
-    if (cell.flagged) return;
+    if (cell.flagged || cell.slotFlag) return;
     if (cell.revealed) this.chord(cell);
     else this.reveal(cell);
   }
 
   toggleFlag(x: number, y: number): void {
     if (this.isCashoutRolling) return;
+    const cell = this.board.get(x, y);
+    if (!cell || this.status !== 'playing' || cell.revealed) return;
+
+    // If CON-SLOT consumable is currently primed/active:
     if (this.activeConsumableIdx !== undefined) {
+      const activeCon = this.consumables[this.activeConsumableIdx];
+      if (activeCon && activeCon.id === 'CON-SLOT') {
+        this.useConsumable(this.activeConsumableIdx, cell);
+        return;
+      }
       this.cancelTargetMode();
       return;
     }
-    const cell = this.board.get(x, y);
-    if (!cell || this.status !== 'playing' || cell.revealed) return;
+
+    // If cell already has slotFlag, remove it on right click
+    if (cell.slotFlag) {
+      cell.slotFlag = false;
+      this.emit({ type: 'change' });
+      return;
+    }
+
     cell.flagged = !cell.flagged;
     this.emit({ type: 'change' });
   }
@@ -297,9 +303,89 @@ export class Game {
     return flags;
   }
 
+  getSlotFlags(): Cell[] {
+    return this.board.cells.filter((c) => c.slotFlag && !c.revealed);
+  }
+
+  /** Resolves false slot machine flag penalty: cell explodes/wrong, -1 HP, score reset to 0 */
+  resolveSlotBust(faultCell: Cell): void {
+    faultCell.slotFlag = false;
+    faultCell.flagged = false;
+    faultCell.revealed = true;
+    faultCell.wrong = true;
+    faultCell.exploded = true;
+    this.hull--;
+    this.score = 0;
+    this.combo = 0;
+    this.roundMult = 0;
+    this.cleared = false;
+    this.isCashoutRolling = false;
+    if (this.hull <= 0) {
+      this.lossReason = 'hull';
+      this.status = 'lost';
+    }
+    this.emit({ type: 'change' });
+  }
+
+  /** Resolves 3-slot jackpot win: defuses all 3 mines, awards jackpot score, combo, bits */
+  resolveSlotJackpot(slots: Cell[]): { score: number; bits: number } {
+    const jackpotScore = Math.round(this.target * 1.5);
+    const bonusBits = 3;
+
+    for (const c of slots) {
+      c.mine = false;
+      c.slotFlag = false;
+      c.flagged = false;
+      c.revealed = true;
+      c.defused = true;
+    }
+
+    this.board.recomputeAdjacents();
+
+    // Cascade safe cells around the 3 jackpot detonated points
+    for (const m of slots) {
+      for (const n of this.board.neighbors(m)) {
+        if (!n.revealed && !n.mine && !n.flagged && !n.slotFlag) {
+          const layers = this.board.flood(n);
+          if (layers.length) {
+            for (const layer of layers) {
+              for (const c of layer) c.revealed = true;
+            }
+          } else {
+            n.revealed = true;
+          }
+        }
+      }
+    }
+
+    this.score += jackpotScore;
+    this.combo += 3;
+    this.bits += bonusBits;
+
+    if (!this.cleared && this.score >= this.target) {
+      this.cleared = true;
+      this.emit({ type: 'cleared' });
+    }
+    if (this.cleared) {
+      const newLvl = Math.max(0, Math.floor((this.score - this.target) / (this.target * CONFIG.overchargeBitStep)));
+      if (newLvl > this.overchargeLevel) {
+        this.overchargeLevel = newLvl;
+        this.emit({ type: 'overchargeUp', level: newLvl });
+      }
+    }
+    if (this.board.safeRemaining() === 0) {
+      this.cleared = true;
+    }
+
+    this.isCashoutRolling = false;
+    this.emit({ type: 'change' });
+    return { score: jackpotScore, bits: bonusBits };
+  }
+
   /** Resolves false flag penalty: 1 HP lost, combo reset to 0 */
   resolveCashoutBust(faultCell: Cell): void {
     faultCell.flagged = false;
+    faultCell.slotFlag = false;
     faultCell.revealed = true;
     faultCell.wrong = true;
     this.hull--;

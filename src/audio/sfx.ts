@@ -91,6 +91,19 @@ export class Sfx {
     this.tone(140, 0.2, 0.35, 'square', 0.22);
   }
 
+  /** Classic mechanical slot reel spinning & border light chaser sound */
+  slotReelSpin(step: number) {
+    const freq = 400 + (step % 6) * 70;
+    this.tone(freq, 0, 0.04, 'square', 0.08);
+  }
+
+  /** Slot reel stop / click */
+  slotReelStop(idx: number) {
+    const freq = [520, 650, 780][idx % 3];
+    this.tone(freq, 0, 0.09, 'sine', 0.16);
+    this.tone(freq * 1.5, 0.03, 0.08, 'triangle', 0.12);
+  }
+
   /** Triumphant arcade slot-machine jackpot bell sequence */
   jackpotFanfare() {
     const notes = [523, 659, 784, 1046, 784, 1046, 1318, 1568];

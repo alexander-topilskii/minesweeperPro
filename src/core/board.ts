@@ -8,6 +8,8 @@ export interface Cell {
   exploded: boolean;
   defused?: boolean;
   wrong?: boolean;
+  /** True if tagged with a Slot Machine Flag consumable */
+  slotFlag?: boolean;
 }
 
 /** Pure grid logic: generation, neighbours, flood fill. No scoring here. */

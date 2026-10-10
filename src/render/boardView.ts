@@ -8,7 +8,7 @@ const SHADOW = '#808080';
 const NUM_COLORS = ['', '#0000ff', '#008000', '#ff0000', '#000080', '#800000', '#008080', '#000000', '#808080'];
 const TEX = 32; // low-res + nearest filter = crisp pixel look
 
-type TileKind = 'hidden' | 'hover' | 'pressed' | 'flag' | 'mine' | 'exploded' | 'wrongFlag' | 'defused' | 'checking' | `n${number}`;
+type TileKind = 'hidden' | 'hover' | 'pressed' | 'flag' | 'slotFlag' | 'slotGlow' | 'mine' | 'exploded' | 'wrongFlag' | 'defused' | 'checking' | `n${number}`;
 
 function makeTexture(draw: (ctx: CanvasRenderingContext2D, s: number) => void): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
@@ -117,6 +117,51 @@ function wrongFlag(ctx: CanvasRenderingContext2D, s: number) {
   ctx.stroke();
 }
 
+function slotMachine(ctx: CanvasRenderingContext2D, s: number, glow = false) {
+  const u = s / 16;
+  const c = s / 2;
+
+  // Outer casing of the slot cabinet
+  ctx.fillStyle = glow ? '#ff0055' : '#8b0000';
+  ctx.fillRect(2.5 * u, 2 * u, 11 * u, 12 * u);
+
+  // Gold trim / bezel
+  ctx.strokeStyle = glow ? '#ffe600' : '#d4af37';
+  ctx.lineWidth = 1.2 * u;
+  ctx.strokeRect(3 * u, 2.5 * u, 10 * u, 11 * u);
+
+  // Top marquee (neon header)
+  ctx.fillStyle = glow ? '#ffea00' : '#ffa500';
+  ctx.fillRect(4 * u, 3.2 * u, 8 * u, 2.4 * u);
+  ctx.fillStyle = '#000';
+  ctx.font = `bold ${4 * u}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('777', c, 4.5 * u);
+
+  // Reel window (cyan screen)
+  ctx.fillStyle = '#051b2c';
+  ctx.fillRect(4 * u, 6.2 * u, 8 * u, 4.2 * u);
+  ctx.strokeStyle = '#00f0ff';
+  ctx.lineWidth = 0.8 * u;
+  ctx.strokeRect(4 * u, 6.2 * u, 8 * u, 4.2 * u);
+
+  // 3 Reels: 🍒 7 ⚡
+  ctx.fillStyle = glow ? '#ffffff' : '#00ffff';
+  ctx.font = `bold ${3.2 * u}px monospace`;
+  ctx.fillText('7', 5.3 * u, 8.4 * u);
+  ctx.fillText('7', c, 8.4 * u);
+  ctx.fillText('7', 10.7 * u, 8.4 * u);
+
+  // Mini side lever
+  ctx.fillStyle = '#silver';
+  ctx.fillRect(13.5 * u, 5 * u, 1.2 * u, 4 * u);
+  ctx.fillStyle = '#ff0000';
+  ctx.beginPath();
+  ctx.arc(14.1 * u, 4.5 * u, 1.3 * u, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 function buildMaterials(): Record<TileKind, THREE.MeshBasicMaterial> {
   const mk = (draw: (c: CanvasRenderingContext2D, s: number) => void) =>
     new THREE.MeshBasicMaterial({ map: makeTexture(draw) });
@@ -125,13 +170,21 @@ function buildMaterials(): Record<TileKind, THREE.MeshBasicMaterial> {
     hover: mk((c, s) => raised(c, s, '#d4d4d4')),
     pressed: mk((c, s) => sunken(c, s)),
     flag: mk((c, s) => (raised(c, s), flag(c, s))),
+    slotFlag: mk((c, s) => (raised(c, s, '#ffe8ec'), slotMachine(c, s, false))),
+    slotGlow: mk((c, s) => {
+      raised(c, s, '#fff5a0');
+      slotMachine(c, s, true);
+      c.strokeStyle = '#ff0055';
+      c.lineWidth = 2;
+      c.strokeRect(1, 1, s - 2, s - 2);
+    }),
     mine: mk((c, s) => (sunken(c, s), mine(c, s))),
     exploded: mk((c, s) => (sunken(c, s, '#ff0000'), mine(c, s))),
     defused: mk((c, s) => (sunken(c, s, '#0d2818'), defusedMine(c, s))),
     wrongFlag: mk((c, s) => (sunken(c, s, '#ffebeb'), wrongFlag(c, s))),
     checking: mk((c, s) => {
       raised(c, s, '#fffae0');
-      flag(c, s);
+      slotMachine(c, s, true);
       c.strokeStyle = '#ffaa00';
       c.lineWidth = 2;
       c.strokeRect(1, 1, s - 2, s - 2);
@@ -161,6 +214,7 @@ export class BoardView {
   private time = 0;
   private longPress?: number;
   private checkingCell?: Cell;
+  private glowingSlotCells = new Set<Cell>();
   public locked = false;
 
   setCheckingCell(c?: Cell): void {
@@ -170,6 +224,11 @@ export class BoardView {
       const mesh = this.meshes[idx];
       if (mesh) this.pop.set(mesh, 0);
     }
+    this.sync();
+  }
+
+  setGlowingSlotCells(cells: Cell[]): void {
+    this.glowingSlotCells = new Set(cells);
     this.sync();
   }
 
@@ -263,6 +322,7 @@ export class BoardView {
     if (c.defused) return 'defused';
     if (c.wrong) return 'wrongFlag';
     if (c.revealed) return c.mine ? 'mine' : `n${c.adjacent}`;
+    if (c.slotFlag) return this.glowingSlotCells.has(c) ? 'slotGlow' : 'slotFlag';
     if (c.flagged) return 'flag';
     if (c === this.pressed) return 'pressed';
     return c === this.hover ? 'hover' : 'hidden';

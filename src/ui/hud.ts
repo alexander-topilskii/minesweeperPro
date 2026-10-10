@@ -15,7 +15,6 @@ export class Hud {
       smiley(): void;
       restart(): void;
       onUseConsumable(idx: number): void;
-      onPullLever(): void;
     },
   ) {
     $('smiley').addEventListener('click', () => this.actions.smiley());
@@ -30,8 +29,6 @@ export class Hud {
       this.actions.onUseConsumable(idx);
     });
 
-    $('lever-handle')?.addEventListener('click', () => this.actions.onPullLever());
-    $('btn-lever-slam')?.addEventListener('click', () => this.actions.onPullLever());
     $('btn-advance')?.addEventListener('click', () => this.actions.smiley());
 
     requestAnimationFrame(this.tick);
@@ -129,81 +126,17 @@ export class Hud {
       : `Сектор ${g.sector}/${CONFIG.sectors} · ${g.stageName}`;
 
     if (isShop) {
-      $('status-hint').textContent = '🛒 Торговый пост: покупайте модули и расходники за Bits · Нажмите «В БОЙ ▶» для старта следующего этапа';
+      $('status-hint').textContent = '🛒 Торговый пост: покупайте Флаги-Слоты 🎰 за Bits · Нажмите «В БОЙ ▶» для старта';
     } else if (g.activeConsumableIdx !== undefined) {
       const con = g.consumables[g.activeConsumableIdx];
-      $('status-hint').textContent = `🎯 [РЕЖИМ ПРИЦЕЛА]: Выберите закрытую клетку для применения «${con?.name}» (ПКМ для отмены)`;
+      $('status-hint').textContent = `🎯 [РЕЖИМ ПРИЦЕЛА]: Кликните ПКМ/ЛКМ по закрытой клетке, чтобы поставить «${con?.name}»`;
     } else if (g.cleared && g.status === 'playing') {
       $('status-hint').textContent = '😎 — нажмите «В МАГАЗИН» для перехода к покупкам или набивайте Overcharge дальше!';
     } else {
-      $('status-hint').textContent = 'ЛКМ — скан · ПКМ/удержание — флаг · клик по цифре — аккорд';
-    }
-
-    // Cashout Lever status & readouts
-    const cashout = g.getCashoutInfo();
-    const leverHandle = $('lever-handle') as HTMLButtonElement | null;
-    const btnSlam = $('btn-lever-slam') as HTMLButtonElement | null;
-    const leverLamp = $('lever-lamp');
-    const leverStatus = $('lever-status');
-
-    if ($('lever-flags-count')) $('lever-flags-count').textContent = `${cashout.count} 🚩`;
-    if ($('lever-mult-val')) $('lever-mult-val').textContent = `×${cashout.mult.toFixed(1)}`;
-    if ($('lever-pot-val')) $('lever-pot-val').textContent = `+${cashout.potScore}`;
-
-    const canPull = cashout.count > 0 && g.status === 'playing' && !g.isCashoutRolling;
-    if (leverHandle) leverHandle.disabled = !canPull;
-    if (btnSlam) btnSlam.disabled = !canPull;
-
-    if (leverLamp && leverStatus) {
-      if (g.isCashoutRolling) {
-        leverLamp.className = 'lamp rolling';
-        leverStatus.textContent = 'ПРОВЕРКА...';
-      } else if (cashout.count > 0 && g.status === 'playing') {
-        leverLamp.className = 'lamp armed';
-        leverStatus.textContent = 'ВЗВЕДЕНО!';
-      } else {
-        leverLamp.className = 'lamp';
-        leverStatus.textContent = 'ОЖИДАНИЕ';
-      }
+      $('status-hint').textContent = 'ЛКМ — скан · ПКМ — флаг · 🎰 Соберите 3 флага-слота для джекпота!';
     }
 
     this.renderOverlay();
-  }
-
-  setLeverAnimation(state: 'pull' | 'jackpot' | 'bust' | 'reset'): void {
-    const handle = $('lever-handle');
-    const chassis = $('lever-chassis');
-    const lamp = $('lever-lamp');
-    const status = $('lever-status');
-    if (!handle || !chassis) return;
-
-    if (state === 'pull') {
-      handle.classList.add('pulled');
-      chassis.classList.add('rolling');
-      if (lamp) lamp.className = 'lamp rolling';
-      if (status) status.textContent = 'ПРОВЕРКА...';
-    } else if (state === 'jackpot') {
-      chassis.classList.remove('rolling');
-      chassis.classList.add('jackpot');
-      if (lamp) lamp.className = 'lamp jackpot';
-      if (status) status.textContent = 'ДЖЕКПОТ!';
-      setTimeout(() => {
-        handle.classList.remove('pulled');
-        chassis.classList.remove('jackpot');
-      }, 1600);
-    } else if (state === 'bust') {
-      chassis.classList.remove('rolling');
-      chassis.classList.add('bust');
-      if (lamp) lamp.className = 'lamp bust';
-      if (status) status.textContent = 'ОСЕЧКА!';
-      setTimeout(() => {
-        handle.classList.remove('pulled');
-        chassis.classList.remove('bust');
-      }, 1400);
-    } else if (state === 'reset') {
-      handle.classList.remove('pulled');
-      chassis.classList.remove('rolling', 'jackpot', 'bust');
-    }
   }
 
   private turnHtml(t?: TurnResult): string {

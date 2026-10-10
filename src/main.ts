@@ -16,8 +16,12 @@ const fx = new Fx();
 let game = new Game(STARTER.map(getModule));
 
 const view = new BoardView(boardEl, (x, y, action) => {
-  if (action === 'flag') game.toggleFlag(x, y);
-  else game.click(x, y);
+  if (action === 'flag') {
+    game.toggleFlag(x, y);
+    checkSlotAutoRoll();
+  } else {
+    game.click(x, y);
+  }
 });
 
 const shopView = new ShopView(game, {
@@ -42,64 +46,156 @@ const restart = () => {
   shopView.render();
 };
 
-const pullLever = async () => {
-  const flags = game.startCashout();
-  if (!flags || !flags.length) return;
+let isSlotRolling = false;
 
-  sfx.leverPull();
+function buildBoardBorderLights(): HTMLElement[] {
+  const container = document.getElementById('board-lights');
+  if (!container) return [];
+  container.innerHTML = '';
+  const lamps: HTMLElement[] = [];
+  // Place perimeter lamps (e.g. 24 lamps around the border)
+  const total = 28;
+  for (let i = 0; i < total; i++) {
+    const lamp = document.createElement('div');
+    lamp.className = `chase-lamp ${i % 2 === 0 ? '' : 'alt'}`;
+    container.appendChild(lamp);
+    lamps.push(lamp);
+  }
+  layoutBoardLamps(lamps);
+  return lamps;
+}
+
+function layoutBoardLamps(lamps: HTMLElement[]) {
+  const container = document.getElementById('board-lights');
+  if (!container || !lamps.length) return;
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+  const perimeter = 2 * (w + h);
+  const step = perimeter / lamps.length;
+
+  lamps.forEach((lamp, i) => {
+    let d = i * step;
+    let x = 0;
+    let y = 0;
+    if (d < w) {
+      x = d;
+      y = 6;
+    } else if (d < w + h) {
+      x = w - 6;
+      y = d - w;
+    } else if (d < 2 * w + h) {
+      x = w - (d - (w + h));
+      y = h - 6;
+    } else {
+      x = 6;
+      y = h - (d - (2 * w + h));
+    }
+    lamp.style.left = `${x.toFixed(1)}px`;
+    lamp.style.top = `${y.toFixed(1)}px`;
+  });
+}
+
+const runSlotJackpotRoll = async () => {
+  if (isSlotRolling || game.status !== 'playing') return;
+  const slots = game.getSlotFlags();
+  if (slots.length < 3) return;
+
+  isSlotRolling = true;
   view.locked = true;
-  hud.setLeverAnimation('pull');
 
+  // Make sure board has mines generated
+  if (!game.board.generated) {
+    const safe = game.board.cells.find((c) => !c.slotFlag && !c.flagged) || slots[0];
+    game.board.generate(safe);
+  }
+
+  const lightsContainer = document.getElementById('board-lights');
+  const lamps = buildBoardBorderLights();
+  if (lightsContainer) {
+    lightsContainer.className = 'board-lights active';
+  }
+
+  // Phase 1: Arcade lights chasing along the contour & slot machines blinking
+  // Sound of spinning slot reels!
+  let chaseTick = 0;
+  const chaseInterval = setInterval(() => {
+    chaseTick++;
+    sfx.slotReelSpin(chaseTick);
+    // Cycle lamp highlights
+    lamps.forEach((l, idx) => {
+      const active = (idx + chaseTick) % 4 === 0;
+      l.classList.toggle('off', !active);
+    });
+    // Slot tiles flash in rhythm
+    const glowToggle = chaseTick % 2 === 0;
+    view.setGlowingSlotCells(glowToggle ? slots : []);
+  }, 90);
+
+  // Spin for 1.8 seconds of escalating suspense
+  await new Promise((r) => setTimeout(r, 1800));
+  clearInterval(chaseInterval);
+
+  // Phase 2: Sequential reveal of the 3 slot machine flags
   let failedCell: Cell | null = null;
-
-  for (let i = 0; i < flags.length; i++) {
-    const c = flags[i];
+  for (let i = 0; i < 3; i++) {
+    const c = slots[i];
     view.setCheckingCell(c);
-    sfx.rollTick(i);
+    sfx.slotReelStop(i);
+    view.kick(0.2);
 
-    // Suspense rhythm
-    await new Promise((r) => setTimeout(r, 340));
+    await new Promise((r) => setTimeout(r, 450));
 
     if (c.mine) {
+      // Confirmed mine!
       sfx.flagConfirmed(i);
       const p = cellScreen(c.x, c.y);
-      fx.burst(p.x, p.y, `<span class="score-main" style="color:#00ff88;font-size:18px;">⚡ МИНА!</span>`, 'score');
+      fx.burst(p.x, p.y, `<span class="score-main" style="color:#00ff88;font-size:20px;">⚡ МИНА [7]!</span>`, 'score');
     } else {
+      // False flag! Safe cell under slot machine -> BUST!
       failedCell = c;
       break;
     }
   }
 
   view.setCheckingCell(undefined);
+  view.setGlowingSlotCells([]);
 
   if (failedCell) {
-    // BUST
+    // BUST / EXPLOSION
     sfx.buzzer();
-    view.kick(0.6);
-    hud.setLeverAnimation('bust');
+    view.kick(0.65);
+    if (lightsContainer) lightsContainer.className = 'board-lights bust';
     const p = cellScreen(failedCell.x, failedCell.y);
-    fx.burst(p.x, p.y, `<span class="hurt-main">💥 ОСЕЧКА! -1 HP</span>`, 'hurt');
-    game.resolveCashoutBust(failedCell);
+    fx.burst(p.x, p.y, `<span class="hurt-main">💥 ВЗРЫВ! -1 HP · СЧЁТ 0</span>`, 'hurt');
+    game.resolveSlotBust(failedCell);
     view.sync();
     view.locked = false;
-    hud.showBonus([`💥 ОСЕЧКА! ЛОЖНЫЙ ФЛАГ`, `СЕРИЯ СБИТА (-1 HP)`], true);
+    isSlotRolling = false;
+    hud.showBonus([`💥 ОСЕЧКА СЛОТА! ЛОЖНЫЙ ФЛАГ`, `СЕРИЯ СБИТА · ОЧКИ ОБНУЛЕНЫ`], true);
     hud.render();
+    setTimeout(() => {
+      if (lightsContainer) lightsContainer.className = 'board-lights';
+    }, 1200);
   } else {
-    // JACKPOT!
+    // 3 MINES CONFIRMED: 777 JACKPOT!
     sfx.jackpotFanfare();
-    view.kick(0.35);
-    hud.setLeverAnimation('jackpot');
+    view.kick(0.45);
+    if (lightsContainer) lightsContainer.className = 'board-lights jackpot';
 
-    const result = game.resolveCashoutJackpot(flags);
+    const result = game.resolveSlotJackpot(slots);
     view.build(game.board);
     view.locked = false;
+    isSlotRolling = false;
 
-    fx.banner(boardEl, `🎰 ДЖЕКПОТ! +${result.score}`, 'rainbow');
+    fx.banner(boardEl, `🎰 7-7-7 ДЖЕКПОТ!\n+${result.score} PTS · +${result.bits} BITS`, 'rainbow');
     hud.showBonus([
-      `🎰 ДЖЕКПОТ! ×${result.mult.toFixed(1)} (+${result.score} PTS)`,
-      `⚡ ${result.count} МИН ОБЕЗВРЕЖЕНО!`,
+      `🎰 7-7-7 ДЖЕКПОТ! (+${result.score} PTS)`,
+      `💎 +${result.bits} BITS ЗА 3 ОБЕЗВРЕЖЕННЫХ МИНЫ!`,
     ], false);
     hud.render();
+    setTimeout(() => {
+      if (lightsContainer) lightsContainer.className = 'board-lights';
+    }, 2200);
   }
 };
 
@@ -112,15 +208,19 @@ const hud = new Hud(game, {
   onUseConsumable: (idx) => {
     const success = game.useConsumable(idx);
     if (success) {
-      sfx.cascade(5);
+      sfx.click();
+      checkSlotAutoRoll();
     } else {
       sfx.click();
     }
   },
-  onPullLever: () => {
-    void pullLever();
-  },
 });
+
+function checkSlotAutoRoll() {
+  if (game.getSlotFlags().length >= 3) {
+    void runSlotJackpotRoll();
+  }
+}
 
 function cellScreen(x: number, y: number) {
   const r = boardEl.getBoundingClientRect();

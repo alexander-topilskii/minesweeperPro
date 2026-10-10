@@ -143,13 +143,75 @@ body.cleared .target i {
 .board-stage {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: 1fr 142px;
-  gap: 6px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
 }
-.board-frame { flex: 1; min-height: 0; border-width: 3px; background: var(--face); }
+.board-frame {
+  flex: 1;
+  min-height: 0;
+  border-width: 4px;
+  background: var(--face);
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
 #board { width: 100%; height: 100%; position: relative; }
 #board canvas { display: block; width: 100%; height: 100%; cursor: default; }
+
+/* ===== Slot Machine Chaser Lights around the Board Border ===== */
+.board-lights {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  display: none;
+  box-sizing: border-box;
+}
+.board-lights.active {
+  display: block;
+}
+.board-lights.jackpot {
+  display: block;
+  animation: lights-jackpot 0.2s infinite alternate;
+}
+.board-lights.bust {
+  display: block;
+  animation: lights-bust 0.25s infinite alternate;
+}
+
+.chase-lamp {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffdd00;
+  box-shadow: 0 0 8px #ffdd00, 0 0 14px #ff5500;
+  transform: translate(-50%, -50%);
+  transition: opacity 0.08s, transform 0.08s;
+}
+.chase-lamp.off {
+  opacity: 0.2;
+  box-shadow: none;
+  background: #554400;
+}
+.chase-lamp.alt {
+  background: #ff0055;
+  box-shadow: 0 0 8px #ff0055, 0 0 14px #ff00bb;
+}
+.chase-lamp.alt.off {
+  background: #440011;
+  box-shadow: none;
+}
+
+@keyframes lights-jackpot {
+  0% { box-shadow: inset 0 0 25px #ffd700, inset 0 0 45px #00ff88; }
+  100% { box-shadow: inset 0 0 35px #ff00ea, inset 0 0 60px #00e5ff; }
+}
+@keyframes lights-bust {
+  0% { box-shadow: inset 0 0 30px #ff0000; }
+  100% { box-shadow: inset 0 0 50px #880000; }
+}
 
 /* ===== Massive Mechanical Cashout Lever Chassis ===== */
 .lever-chassis {
