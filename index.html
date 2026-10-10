@@ -31,7 +31,7 @@
               <span id="target-text"></span>
             </div>
             <button class="btn-advance bevel-out" id="btn-advance" hidden title="Забрать награду и перейти в Торговый пост">
-              🏁 ПРОДОЛЖИТЬ (<span id="advance-bits">+0</span> BITS)
+              🏁 ПРОДОЛЖИТЬ (<span id="advance-bits">+$0</span>)
             </button>
           </div>
           <div class="board-stage">
@@ -53,7 +53,7 @@
             <div class="stats">
               <span>Жизни (HP)</span><b id="hull"></b>
               <span>Комбо</span><b id="combo"></b>
-              <span>Bits</span><b id="bits"></b>
+              <span>Баланс</span><b id="bits"></b>
             </div>
           </fieldset>
           <fieldset class="cons">
@@ -73,8 +73,8 @@
           <div class="shop-header bevel-in">
             <div class="shop-title">ТОРГОВЫЙ ПОСТ СЕКТОРА <span id="shop-sector">1</span></div>
             <div class="shop-balance">
-              <span class="label">БАЛАНС BITS:</span>
-              <div class="lcd" id="shop-bits">000</div>
+              <span class="label">БАЛАНС:</span>
+              <div class="lcd" id="shop-bits">$000</div>
             </div>
           </div>
 
@@ -109,7 +109,7 @@
           <!-- BOTTOM ACTION BAR -->
           <div class="shop-bottom bevel-in">
             <button class="btn bevel-out btn-reroll" id="btn-reroll">
-              🎲 ОБНОВИТЬ ВИТРИНУ (<span id="reroll-cost">3</span> BITS)
+              🎲 ОБНОВИТЬ ВИТРИНУ ($<span id="reroll-cost">3</span>)
             </button>
             <div class="shop-next-preview" id="shop-next-info">
               След: <b id="shop-next-name">Глубокий сканер</b> | Цель: <b id="shop-next-target">960</b> | Мин: <b id="shop-next-mines">18</b>

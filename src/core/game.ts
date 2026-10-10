@@ -60,6 +60,8 @@ export class Game {
   lastTurn?: TurnResult;
   /** True while the sequential cashout lever validation roll is active. */
   isCashoutRolling = false;
+  /** True while the 3-slot machine jackpot roll animation is active. */
+  isSlotRolling = false;
   /** Per-round scratch state for modules, keyed by module id. */
   roundState: Record<string, unknown> = {};
 
@@ -131,6 +133,7 @@ export class Game {
     this.roundState = {};
     this.lastTurn = undefined;
     this.isCashoutRolling = false;
+    this.isSlotRolling = false;
     this.lossReason = undefined;
     this.status = 'playing';
     this.runHook('onRoundStart', (h) => h(this));

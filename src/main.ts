@@ -138,6 +138,7 @@ const runSlotJackpotRoll = async () => {
   if (slots.length < 3) return;
 
   isSlotRolling = true;
+  game.isSlotRolling = true;
   view.locked = true;
 
   // Make sure board has mines generated
@@ -208,6 +209,7 @@ const runSlotJackpotRoll = async () => {
     view.sync();
     view.locked = false;
     isSlotRolling = false;
+    game.isSlotRolling = false;
     hud.showBonus([`💥 ОСЕЧКА СЛОТА! -1 HP`, `СЕРИЯ СБИТА`], true);
     hud.render();
     setTimeout(() => {
@@ -224,13 +226,14 @@ const runSlotJackpotRoll = async () => {
     view.locked = false;
     isSlotRolling = false;
 
-    fx.banner(boardEl, `🎰 7-7-7 ДЖЕКПОТ!\n+${result.score} PTS · +${result.bits} BITS`, 'rainbow');
+    fx.banner(boardEl, `🎰 7-7-7 ДЖЕКПОТ!\n+${result.score} PTS · +$${result.bits}`, 'rainbow');
     hud.showBonus([
       `🎰 7-7-7 ДЖЕКПОТ! (+${result.score} PTS)`,
-      `💎 +${result.bits} BITS ЗА 3 ОБЕЗВРЕЖЕННЫХ МИНЫ!`,
+      `💎 +$${result.bits} ЗА 3 ОБЕЗВРЕЖЕННЫХ МИНЫ!`,
     ], false);
     hud.render();
     setTimeout(() => {
+      game.isSlotRolling = false;
       if (lightsContainer) lightsContainer.className = 'board-lights';
     }, 2200);
   }
@@ -316,12 +319,12 @@ function wire(g: Game) {
         hud.showBonus(['🎉 ЦЕЛЬ ВЫПОЛНЕНА!', '🏁 ПРОДОЛЖИТЬ ИЛИ НАБИВАТЬ OVERCHARGE!'], false);
         break;
       case 'overchargeUp':
-        fx.banner(boardEl, `⚡ OVERCHARGE УР. ${e.level}!\n+1 EXTRA BIT`, 'bits');
+        fx.banner(boardEl, `⚡ OVERCHARGE УР. ${e.level}!\n+$1 БОНУС`, 'bits');
         sfx.cascade(8);
-        hud.showBonus([`⚡ OVERCHARGE УР. ${e.level}!`, `+1 БОНУСНЫЙ BIT ДЛЯ МАГАЗИНА`], false);
+        hud.showBonus([`⚡ OVERCHARGE УР. ${e.level}!`, `+$1 БОНУС ДЛЯ МАГАЗИНА`], false);
         break;
       case 'roundEnd':
-        fx.banner(boardEl, `+${e.summary.bits} BITS<small>${e.summary.score} / ${e.summary.target}</small>`, 'bits');
+        fx.banner(boardEl, `+$${e.summary.bits}<small>${e.summary.score} / ${e.summary.target}</small>`, 'bits');
         if (g.status === 'shop') {
           setTimeout(() => {
             if (g === game && g.status === 'shop') {

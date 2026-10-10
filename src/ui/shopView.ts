@@ -78,7 +78,7 @@ export class ShopView {
   render(): void {
     const g = this.game;
     $('shop-sector').textContent = String(g.sector);
-    $('shop-bits').textContent = pad(g.bits, 3);
+    $('shop-bits').textContent = `$${pad(g.bits, 3)}`;
     $('shop-mod-count').textContent = String(g.modules.length);
     $('shop-con-count').textContent = String(g.consumables.length);
     $('reroll-cost').textContent = String(g.rerollCost);
@@ -127,7 +127,7 @@ export class ShopView {
           <b>${m.name}</b>
           <small>${m.description}</small>
         </div>
-        <button class="btn bevel-out btn-sell" data-sell-mod="${i}">ПРОДАТЬ (+${sellPrice})</button>
+        <button class="btn bevel-out btn-sell" data-sell-mod="${i}">ПРОДАТЬ (+$${sellPrice})</button>
       </div>`;
     }).join('');
 
@@ -141,7 +141,7 @@ export class ShopView {
           <b>${c.name} ${c.maxCharges ? `(${c.charges ?? c.maxCharges}/${c.maxCharges})` : ''}</b>
           <small>${c.description}</small>
         </div>
-        <button class="btn bevel-out btn-sell" data-sell-con="${i}">ПРОДАТЬ (+${sellPrice})</button>
+        <button class="btn bevel-out btn-sell" data-sell-con="${i}">ПРОДАТЬ (+$${sellPrice})</button>
       </div>`;
     }).join('');
   }
@@ -160,7 +160,7 @@ export class ShopView {
         <div class="card-name-en">${m.nameEn}</div>
         <div class="card-desc">${m.description}</div>
         <button class="btn bevel-out btn-buy" data-buy-mod="${m.id}" ${canAfford ? '' : 'disabled'}>
-          ${isFull ? 'МЕСТ НЕТ' : `КУПИТЬ: ${m.cost} BITS`}
+          ${isFull ? 'МЕСТ НЕТ' : `КУПИТЬ: $${m.cost}`}
         </button>
       </div>
     `;
@@ -178,7 +178,7 @@ export class ShopView {
         <div class="card-name-en">${c.nameEn}</div>
         <div class="card-desc">${c.description}</div>
         <button class="btn bevel-out btn-buy" data-buy-con="${c.id}" ${canAfford ? '' : 'disabled'}>
-          ${isFull ? 'МЕСТ НЕТ' : `КУПИТЬ: ${c.cost} BITS`}
+          ${isFull ? 'МЕСТ НЕТ' : `КУПИТЬ: $${c.cost}`}
         </button>
       </div>
     `;

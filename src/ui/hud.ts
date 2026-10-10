@@ -18,6 +18,8 @@ function clicksRemainingText(n: number): string {
 export class Hud {
   private displayedScore = 0;
   private clearedPopupDismissed = false;
+  private clearedPopupReady = false;
+  private clearedTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     private game: Game,
@@ -32,9 +34,20 @@ export class Hud {
     $('overlay').addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
       if (target.closest('[data-action="restart"]')) this.actions.restart();
-      if (target.closest('[data-action="advance"]')) this.actions.advance();
+      if (target.closest('[data-action="advance"]')) {
+        if (this.clearedTimer) {
+          clearTimeout(this.clearedTimer);
+          this.clearedTimer = null;
+        }
+        this.actions.advance();
+      }
       if (target.closest('[data-action="dismiss-cleared"]')) {
         this.clearedPopupDismissed = true;
+        this.clearedPopupReady = false;
+        if (this.clearedTimer) {
+          clearTimeout(this.clearedTimer);
+          this.clearedTimer = null;
+        }
         this.render();
       }
     });
@@ -46,7 +59,13 @@ export class Hud {
       this.actions.onUseConsumable(idx);
     });
 
-    $('btn-advance')?.addEventListener('click', () => this.actions.advance());
+    $('btn-advance')?.addEventListener('click', () => {
+      if (this.clearedTimer) {
+        clearTimeout(this.clearedTimer);
+        this.clearedTimer = null;
+      }
+      this.actions.advance();
+    });
 
     requestAnimationFrame(this.tick);
   }
@@ -55,6 +74,11 @@ export class Hud {
     this.game = game;
     this.displayedScore = 0;
     this.clearedPopupDismissed = false;
+    this.clearedPopupReady = false;
+    if (this.clearedTimer) {
+      clearTimeout(this.clearedTimer);
+      this.clearedTimer = null;
+    }
     const feed = $('bonus-feed');
     if (feed) feed.innerHTML = '';
   }
@@ -77,6 +101,20 @@ export class Hud {
 
     if (!g.cleared) {
       this.clearedPopupDismissed = false;
+      this.clearedPopupReady = false;
+      if (this.clearedTimer) {
+        clearTimeout(this.clearedTimer);
+        this.clearedTimer = null;
+      }
+    } else if (!this.clearedPopupDismissed && !this.clearedPopupReady && !this.clearedTimer && g.status === 'playing') {
+      const delay = g.isSlotRolling ? 2500 : 1500;
+      this.clearedTimer = setTimeout(() => {
+        this.clearedTimer = null;
+        if (this.game.status === 'playing' && this.game.cleared && !this.clearedPopupDismissed) {
+          this.clearedPopupReady = true;
+          this.render();
+        }
+      }, delay);
     }
 
     // View toggle between game and shop
@@ -103,8 +141,8 @@ export class Hud {
     if (g.cleared) {
       const currentPct = Math.round((g.score / g.target) * 100);
       $('target-text').textContent = overchargeLvl > 0
-        ? `⚡ OVERCHARGE ${currentPct}% [УР.${overchargeLvl}: +${overchargeLvl} BITS] · СЛЕДУЮЩИЙ: ${nextOverchargePct}%`
-        : `⚡ OVERCHARGE ${currentPct}% · СЛЕДУЮЩИЙ BIT НА ${nextOverchargePct}%`;
+        ? `⚡ OVERCHARGE ${currentPct}% [УР.${overchargeLvl}: +$${overchargeLvl}] · СЛЕДУЮЩИЙ: ${nextOverchargePct}%`
+        : `⚡ OVERCHARGE ${currentPct}% · СЛЕДУЮЩИЙ +$1 НА ${nextOverchargePct}%`;
     } else {
       $('target-text').textContent = `ЦЕЛЬ: ${g.score} / ${g.target} (${Math.round((g.score / g.target) * 100)}%)`;
     }
@@ -113,7 +151,7 @@ export class Hud {
     if (btnAdvance) {
       btnAdvance.hidden = !g.cleared || g.status !== 'playing';
       const advBits = $('advance-bits');
-      if (advBits) advBits.textContent = `+${bitsReward}`;
+      if (advBits) advBits.textContent = `+$${bitsReward}`;
     }
 
     document.body.classList.toggle('cleared', g.cleared);
@@ -121,7 +159,7 @@ export class Hud {
     $('turn').innerHTML = this.turnHtml(g.lastTurn);
     $('hull').innerHTML = Array.from({ length: g.maxHull }, (_, i) => `<i class="${i < g.hull ? 'on' : ''}"></i>`).join('');
     $('combo').textContent = `${g.combo}  (+${fmt(g.combo * CONFIG.comboMultStep)})`;
-    $('bits').textContent = String(g.bits);
+    $('bits').textContent = `$${g.bits}`;
 
     // Consumables list in side panel
     $('consumables').innerHTML = Array.from({ length: CONFIG.consumableSlots }, (_, i) => {
@@ -158,7 +196,7 @@ export class Hud {
       : `Сектор ${g.sector}/${CONFIG.sectors} · ${g.stageName}`;
 
     if (isShop) {
-      $('status-hint').textContent = '🛒 Торговый пост: покупайте Флаги-Слоты 🎰 за Bits · Нажмите «В БОЙ ▶» для старта';
+      $('status-hint').textContent = '🛒 Торговый пост: покупайте модули и Флаги-Слоты 🎰 за $ · Нажмите «В БОЙ ▶» для старта';
     } else if (g.activeConsumableIdx !== undefined) {
       const con = g.consumables[g.activeConsumableIdx];
       const leftStr = con?.charges !== undefined ? ` (${con.charges} в запасе)` : '';
@@ -274,7 +312,7 @@ export class Hud {
           <span class="dicon">👑</span>
           <div class="dialog-content">
             <div class="win-title">ВСЕ СЕКТОРЫ ЗАЧИЩЕНЫ!</div>
-            <p>Вы прошли все глубины. Накоплено Bits: <b>${g.bits}</b></p>
+            <p>Вы прошли все глубины. Накоплено: <b>$${g.bits}</b></p>
           </div>
         </div>
         <div class="dialog-btns"><button class="btn bevel-out" data-action="restart">Начать с начала</button></div>
@@ -282,7 +320,7 @@ export class Hud {
       return;
     }
 
-    if (g.cleared && !this.clearedPopupDismissed && g.status === 'playing') {
+    if (g.cleared && this.clearedPopupReady && !this.clearedPopupDismissed && g.status === 'playing') {
       el.hidden = false;
       const overchargeLvl = Math.max(0, Math.floor((g.score - g.target) / (g.target * CONFIG.overchargeBitStep)));
       const bitsReward = CONFIG.bitsPerWin + g.clicks * CONFIG.bitsPerClickLeft + overchargeLvl;
@@ -312,12 +350,12 @@ export class Hud {
               </div>
               <div class="stat-row">
                 <span>Награда:</span>
-                <b class="highlight-bits">+${bitsReward} Bits</b>
+                <b class="highlight-bits">+$${bitsReward}</b>
               </div>
               ${overchargeLvl > 0 ? `
               <div class="stat-row">
                 <span>Overcharge:</span>
-                <b class="highlight-overcharge">Ур. ${overchargeLvl} (+${overchargeLvl} Bits)</b>
+                <b class="highlight-overcharge">Ур. ${overchargeLvl} (+$${overchargeLvl})</b>
               </div>` : ''}
             </div>
             <div class="cleared-prompt">
