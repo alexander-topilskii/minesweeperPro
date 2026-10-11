@@ -5,7 +5,7 @@ export const CONFIG = {
   minesPerStage: 1,
   clicks: 45,
   bossClicks: 70,
-  hull: 1,
+  hull: 2,
   moduleSlots: 5,
   consumableSlots: 3,
   rerollBaseCost: 3,
@@ -63,9 +63,20 @@ export function cashoutScore(flags: number, combo = 0): number {
 export function targetFor(stage: number): number {
   const act = Math.floor(stage / 8); // 0 for Act 1, 1 for Act 2, 2 for Act 3
   const floor = stage % 8; // 0..7
-  const floorProgress = 1 + floor * 0.07;
-  const actMult = CONFIG.sectorGrowth ** act;
-  return Math.round((CONFIG.baseTarget * floorProgress * actMult) / 10) * 10;
+
+  // Act 1: 380 base (Act 1 boss at floor 7 is ~740 pts with 1.3 boss multiplier)
+  // Act 2: 14x14 arenas, but relaxed targets (420..550 pts, less than Act 1 boss!)
+  let base: number = CONFIG.baseTarget;
+  let floorStep = 0.07;
+  if (act === 1) {
+    base = 420;
+    floorStep = 0.045;
+  } else if (act >= 2) {
+    base = 560;
+    floorStep = 0.05;
+  }
+  const floorProgress = 1 + floor * floorStep;
+  return Math.round((base * floorProgress) / 10) * 10;
 }
 
 export function minesFor(stage: number): number {

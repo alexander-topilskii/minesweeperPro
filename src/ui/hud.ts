@@ -1,5 +1,6 @@
 import type { Game, TurnResult } from '../core/game';
 import { CONFIG, calcBitsReward } from '../config';
+import { tooltip } from './tooltip';
 
 const $ = (id: string) => document.getElementById(id)!;
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -43,10 +44,21 @@ export class Hud {
       }
     });
 
-    $('dock-fairy')?.addEventListener('click', () => {
+    const dockFairy = $('dock-fairy');
+    dockFairy?.addEventListener('click', () => {
       if (this.game.status === 'lost' && this.game.fairies > 0) {
         this.actions.onFairyRevive();
       }
+    });
+    dockFairy?.addEventListener('mouseenter', () => {
+      if (this.game.fairies > 0) {
+        const text = `<b>🧚 Фея в банке (${this.game.fairies} шт.)</b>Второе дыхание активно! При гибели забег не сбрасывается к началу: фея спасает вас и перезапускает текущий сектор с полным запасом HP.`;
+        const rect = dockFairy.getBoundingClientRect();
+        tooltip.show(text, rect.left + rect.width / 2, rect.bottom + 4, 0);
+      }
+    });
+    dockFairy?.addEventListener('mouseleave', () => {
+      tooltip.hide();
     });
 
     $('consumables').addEventListener('click', (e) => {
@@ -57,7 +69,7 @@ export class Hud {
     });
 
     $('btn-advance')?.addEventListener('click', () => {
-      this.showClearedPopup();
+      this.actions.advance();
     });
 
     requestAnimationFrame(this.tick);
@@ -180,15 +192,6 @@ export class Hud {
         flagsEl.title = 'Лимит по количеству мин на поле';
       }
     }
-    const fairyEl = $('fairy-status');
-    if (fairyEl) {
-      fairyEl.textContent = g.fairies > 0 ? `🧚 ${g.fairies}` : '0';
-      fairyEl.style.color = g.fairies > 0 ? '#00ffaa' : '';
-      fairyEl.title = g.fairies > 0
-        ? `Второе дыхание активно: при поражении сектор перезапустится (${g.fairies} шт.)`
-        : 'Начиная со 2-го сегмента можно найти фею в банке на поле или за победу над первым боссом';
-    }
-
     // Top header effect slot: Fairy in a Bottle
     const dockFairy = $('dock-fairy');
     const dockFairyBadge = $('dock-fairy-badge');
@@ -201,8 +204,8 @@ export class Hud {
           dockFairyBadge.style.display = 'block';
         }
       } else {
-        dockFairy.className = 'dock-slot bevel-in empty';
-        dockFairy.title = 'Слот «Фея в банке» (пусто). Добывается на поле со 2-го сегмента или за победу над первым боссом!';
+        dockFairy.className = 'dock-slot empty';
+        dockFairy.title = '';
         if (dockFairyBadge) {
           dockFairyBadge.style.display = 'none';
         }

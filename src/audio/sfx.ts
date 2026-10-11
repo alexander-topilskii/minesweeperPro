@@ -49,6 +49,12 @@ export class Sfx {
     this.tone(140, 0, 0.02, 'square', 0.05);
   }
 
+  /** High-pitched crystalline ice clink when clicking frozen cells */
+  iceClink() {
+    this.tone(2200, 0, 0.04, 'sine', 0.12);
+    this.tone(3300, 0.02, 0.06, 'triangle', 0.08);
+  }
+
   boom() {
     const ac = this.ac();
     const len = ac.sampleRate * 0.4;

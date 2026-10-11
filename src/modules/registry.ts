@@ -1,8 +1,169 @@
 import type { ModuleDef } from '../core/types';
 
 /** Implemented modules from docs/content/modules/*. */
+/**
+ * Active in-game shop module pool.
+ * Only non-score utility, survival, battery, and economy modules are present.
+ * Score/mult-boosting modules are stashed below to preserve the economy.
+ */
 export const MODULES: ModuleDef[] = [
-  // --- VAL: Flat Data & Mult ---
+  // --- HAZ: Survival & Armor ---
+  {
+    id: 'MOD-HAZ-HP',
+    name: 'Бронекапсула (+1 HP)',
+    nameEn: 'Armor Plating (+1 HP)',
+    description: '+1 слот HP (восстанавливается в начале каждого сектора: +1 → 3 HP).',
+    category: 'HAZ',
+    rarity: 'uncommon',
+    cost: 5,
+    hooks: {},
+  },
+  {
+    id: 'MOD-HAZ-FUGAS',
+    name: 'Направленный фугас',
+    nameEn: 'Shaped Charge',
+    description: 'Подрыв на мине принудительно открывает все 8 клеток вокруг эпицентра бесплатно',
+    category: 'HAZ',
+    rarity: 'rare',
+    cost: 6,
+    hooks: {
+      onMineHit(g, ctx, cell) {
+        g.fire('MOD-HAZ-FUGAS');
+        const neighbors = g.board.neighbors(cell);
+        for (const n of neighbors) {
+          if (!n.revealed && n.mine) {
+            n.defused = true;
+            n.revealed = true;
+            n.flagged = false;
+          }
+        }
+        for (const n of neighbors) {
+          if (!n.revealed && !n.mine) {
+            n.flagged = false;
+            g.openSafe(n, ctx);
+          }
+        }
+        ctx.callouts.push('💥 НАПРАВЛЕННЫЙ ФУГАС: 3×3 ВСКРЫТО!');
+      },
+    },
+  },
+  {
+    id: 'MOD-HAZ-01',
+    name: 'Реактивная броня',
+    nameEn: 'Explosive Reactive Armor',
+    description: 'Подрыв без урона + вскрытие 3×3 вокруг (1 раз за раунд)',
+    category: 'HAZ',
+    rarity: 'uncommon',
+    cost: 7,
+    hooks: {
+      onMineHit(g, ctx, cell, ev) {
+        if (g.roundState['MOD-HAZ-01']) return;
+        g.roundState['MOD-HAZ-01'] = true;
+        ev.prevented = true;
+        for (const n of g.board.neighbors(cell)) {
+          if (!n.mine && !n.revealed && !n.flagged) g.openSafe(n, ctx);
+        }
+        g.fire('MOD-HAZ-01');
+      },
+    },
+  },
+  {
+    id: 'MOD-HAZ-06',
+    name: 'Сапер-камикадзе',
+    nameEn: 'Kamikaze Sapper',
+    description: 'Завершение раунда с ровно 1 HP начисляет +$15',
+    category: 'HAZ',
+    rarity: 'rare',
+    cost: 7,
+    hooks: {
+      onRoundEnd(g) {
+        if (g.hull === 1) {
+          g.bits += 15;
+          g.fire('MOD-HAZ-06');
+        }
+      },
+    },
+  },
+
+  // --- RUL: Battery & Movement Utility ---
+  {
+    id: 'MOD-RUL-06',
+    name: 'Сверхпроводник',
+    nameEn: 'Superconductor',
+    description: 'Каскадная волна нулей → +1 клик батареи',
+    category: 'RUL',
+    rarity: 'uncommon',
+    cost: 6,
+    hooks: {
+      onCascade(g) {
+        g.clicks += 1;
+        g.fire('MOD-RUL-06');
+      },
+    },
+  },
+
+  // --- ECO: Economy & Bits ---
+  {
+    id: 'MOD-ECO-01',
+    name: 'Сборщик лома',
+    nameEn: 'Scrap Harvester',
+    description: 'Подрыв на мине приносит +$4 компенсации',
+    category: 'ECO',
+    rarity: 'common',
+    cost: 4,
+    hooks: {
+      onMineHit(g) {
+        g.bits += 4;
+        g.fire('MOD-ECO-01');
+      },
+    },
+  },
+  {
+    id: 'MOD-ECO-02',
+    name: 'Золотая жила',
+    nameEn: 'Midas Probe',
+    description: 'Каждые 4 открытых нуля в каскаде дают +$1',
+    category: 'ECO',
+    rarity: 'uncommon',
+    cost: 6,
+    hooks: {
+      onCascade(g, _, cells) {
+        const zeros = cells.filter((c) => c.adjacent === 0).length;
+        const bitsEarned = Math.floor(zeros / 4);
+        if (bitsEarned > 0) {
+          g.bits += bitsEarned;
+          g.fire('MOD-ECO-02');
+        }
+      },
+    },
+  },
+  {
+    id: 'MOD-ECO-03',
+    name: 'Генератор Теслы',
+    nameEn: 'Kinetic Battery',
+    description: 'Каждые 8 открытых клеток подряд восстанавливают +1 клик',
+    category: 'ECO',
+    rarity: 'uncommon',
+    cost: 6,
+    hooks: {
+      onReveal(g) {
+        let count = ((g.roundState['MOD-ECO-03'] as number) || 0) + 1;
+        if (count >= 8) {
+          g.clicks += 1;
+          count = 0;
+          g.fire('MOD-ECO-03');
+        }
+        g.roundState['MOD-ECO-03'] = count;
+      },
+    },
+  },
+];
+
+/**
+ * Stashed score/mult-boosting modules.
+ * Temporarily disabled per game balance design until score overhaul.
+ */
+export const STASHED_SCORE_MODULES: ModuleDef[] = [
   {
     id: 'MOD-VAL-01',
     name: 'Бинарный код',
@@ -125,8 +286,6 @@ export const MODULES: ModuleDef[] = [
       },
     },
   },
-
-  // --- SCL: Scaling Engines ---
   {
     id: 'MOD-SCL-01',
     name: 'Бортовой самописец',
@@ -165,8 +324,6 @@ export const MODULES: ModuleDef[] = [
       },
     },
   },
-
-  // --- RUL: Rule Breakers ---
   {
     id: 'MOD-RUL-02',
     name: 'Цепной реактор',
@@ -181,21 +338,6 @@ export const MODULES: ModuleDef[] = [
           ctx.data += 1;
           g.fire('MOD-RUL-02');
         }
-      },
-    },
-  },
-  {
-    id: 'MOD-RUL-06',
-    name: 'Сверхпроводник',
-    nameEn: 'Superconductor',
-    description: 'Каскад нулей → +1 клик',
-    category: 'RUL',
-    rarity: 'uncommon',
-    cost: 7,
-    hooks: {
-      onCascade(g) {
-        g.clicks += 1;
-        g.fire('MOD-RUL-06');
       },
     },
   },
@@ -219,28 +361,6 @@ export const MODULES: ModuleDef[] = [
       },
     },
   },
-
-  // --- HAZ: Hazard & Armor ---
-  {
-    id: 'MOD-HAZ-01',
-    name: 'Реактивная броня',
-    nameEn: 'Explosive Reactive Armor',
-    description: 'Подрыв без урона + вскрытие 3×3 вокруг (1/раунд)',
-    category: 'HAZ',
-    rarity: 'uncommon',
-    cost: 7,
-    hooks: {
-      onMineHit(g, ctx, cell, ev) {
-        if (g.roundState['MOD-HAZ-01']) return;
-        g.roundState['MOD-HAZ-01'] = true;
-        ev.prevented = true;
-        for (const n of g.board.neighbors(cell)) {
-          if (!n.mine && !n.revealed && !n.flagged) g.openSafe(n, ctx);
-        }
-        g.fire('MOD-HAZ-01');
-      },
-    },
-  },
   {
     id: 'MOD-HAZ-02',
     name: 'Адреналиновый насос',
@@ -258,124 +378,10 @@ export const MODULES: ModuleDef[] = [
       },
     },
   },
-  {
-    id: 'MOD-HAZ-06',
-    name: 'Сапер-камикадзе',
-    nameEn: 'Kamikaze Sapper',
-    description: 'Завершение раунда с 1 HP дает +$15',
-    category: 'HAZ',
-    rarity: 'rare',
-    cost: 7,
-    hooks: {
-      onRoundEnd(g) {
-        if (g.hull === 1) {
-          g.bits += 15;
-          g.fire('MOD-HAZ-06');
-        }
-      },
-    },
-  },
-  {
-    id: 'MOD-HAZ-HP',
-    name: 'Бронекапсула (+1 HP)',
-    nameEn: 'Armor Plating (+1 HP)',
-    description: '+1 к максимальному запасу жизней (HP). Позволяет пережить ещё один подрыв.',
-    category: 'HAZ',
-    rarity: 'uncommon',
-    cost: 5,
-    hooks: {},
-  },
-  {
-    id: 'MOD-HAZ-FUGAS',
-    name: 'Направленный фугас',
-    nameEn: 'Shaped Charge',
-    description: 'Подрыв на мине принудительно открывает все 8 клеток вокруг эпицентра бесплатно',
-    category: 'HAZ',
-    rarity: 'rare',
-    cost: 6,
-    hooks: {
-      onMineHit(g, ctx, cell) {
-        g.fire('MOD-HAZ-FUGAS');
-        const neighbors = g.board.neighbors(cell);
-        // Обезвреживаем мины среди 8 соседей, сохраняя исходные цифры на доске
-        for (const n of neighbors) {
-          if (!n.revealed && n.mine) {
-            n.defused = true;
-            n.revealed = true;
-            n.flagged = false;
-          }
-        }
-        // Вскрываем все безопасные клетки вокруг
-        for (const n of neighbors) {
-          if (!n.revealed && !n.mine) {
-            n.flagged = false;
-            g.openSafe(n, ctx);
-          }
-        }
-        ctx.callouts.push('💥 НАПРАВЛЕННЫЙ ФУГАС: 3×3 ВСКРЫТО!');
-      },
-    },
-  },
-
-  // --- ECO: Economy & Utility ---
-  {
-    id: 'MOD-ECO-01',
-    name: 'Сборщик лома',
-    nameEn: 'Scrap Harvester',
-    description: 'Подрыв на мине приносит +$4',
-    category: 'ECO',
-    rarity: 'common',
-    cost: 4,
-    hooks: {
-      onMineHit(g) {
-        g.bits += 4;
-        g.fire('MOD-ECO-01');
-      },
-    },
-  },
-  {
-    id: 'MOD-ECO-02',
-    name: 'Золотая жила',
-    nameEn: 'Midas Probe',
-    description: 'Каждые 4 открытых нуля в каскаде дают +$1',
-    category: 'ECO',
-    rarity: 'uncommon',
-    cost: 6,
-    hooks: {
-      onCascade(g, _, cells) {
-        const zeros = cells.filter((c) => c.adjacent === 0).length;
-        const bitsEarned = Math.floor(zeros / 4);
-        if (bitsEarned > 0) {
-          g.bits += bitsEarned;
-          g.fire('MOD-ECO-02');
-        }
-      },
-    },
-  },
-  {
-    id: 'MOD-ECO-03',
-    name: 'Генератор Теслы',
-    nameEn: 'Kinetic Battery',
-    description: 'Каждые 8 открытых клеток подряд восстанавливают +1 клик',
-    category: 'ECO',
-    rarity: 'uncommon',
-    cost: 6,
-    hooks: {
-      onReveal(g) {
-        let count = ((g.roundState['MOD-ECO-03'] as number) || 0) + 1;
-        if (count >= 8) {
-          g.clicks += 1;
-          count = 0;
-          g.fire('MOD-ECO-03');
-        }
-        g.roundState['MOD-ECO-03'] = count;
-      },
-    },
-  },
 ];
 
 export function getModule(id: string): ModuleDef {
-  const m = MODULES.find((mod) => mod.id === id);
+  const m = MODULES.find((mod) => mod.id === id) ?? STASHED_SCORE_MODULES.find((mod) => mod.id === id);
   if (!m) throw new Error(`Unknown module ${id}`);
   return m;
 }

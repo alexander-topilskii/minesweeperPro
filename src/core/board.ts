@@ -14,6 +14,8 @@ export interface Cell {
   hasFairy?: boolean;
   /** True if fairy in this cell was collected */
   fairyCollected?: boolean;
+  /** True if cell is frozen (impassable obstacle in Act 2 cryo sectors, cannot be opened or mined) */
+  frozen?: boolean;
 }
 
 /** Pure grid logic: generation, neighbours, flood fill. No scoring here. */
@@ -26,6 +28,7 @@ export class Board {
     readonly h: number,
     readonly mineCount: number,
     private readonly rng: () => number = Math.random,
+    readonly frozenCount: number = 0,
   ) {
     for (let y = 0; y < h; y++)
       for (let x = 0; x < w; x++)
@@ -66,8 +69,38 @@ export class Board {
       for (const n of this.neighbors(seed1)) forbidden.add(n);
     }
 
-    // 3. Place mines in the remaining pool with slight natural clustering (creates dense minefields + wide open valleys)
-    const pool = this.cells.filter((c) => !forbidden.has(c));
+    // 3. Place frozen barrier cells if this sector is a cryo/ice sector
+    if (this.frozenCount > 0) {
+      const frozenCandidates = this.cells.filter((c) => !forbidden.has(c));
+      const chosenFrozen = new Set<Cell>();
+      const clustersCount = Math.max(2, Math.floor(this.frozenCount / 4));
+      const perCluster = Math.ceil(this.frozenCount / clustersCount);
+
+      const shuffledCandidates = [...frozenCandidates].sort(() => this.rng() - 0.5);
+      for (let i = 0; i < clustersCount && chosenFrozen.size < this.frozenCount; i++) {
+        const root = shuffledCandidates[i];
+        if (!root || chosenFrozen.has(root)) continue;
+        chosenFrozen.add(root);
+        const ns = this.neighbors(root).filter((n) => !forbidden.has(n) && !chosenFrozen.has(n));
+        for (const n of ns.slice(0, perCluster - 1)) {
+          if (chosenFrozen.size < this.frozenCount) {
+            chosenFrozen.add(n);
+          }
+        }
+      }
+
+      for (const c of shuffledCandidates) {
+        if (chosenFrozen.size >= this.frozenCount) break;
+        if (!chosenFrozen.has(c)) chosenFrozen.add(c);
+      }
+
+      for (const fc of chosenFrozen) {
+        fc.frozen = true;
+      }
+    }
+
+    // 4. Place mines in the remaining pool with slight natural clustering (never on frozen cells!)
+    const pool = this.cells.filter((c) => !forbidden.has(c) && !c.frozen);
     const count = Math.min(this.mineCount, pool.length);
 
     for (let i = 0; i < count; i++) {
@@ -76,13 +109,15 @@ export class Board {
       pool[i].mine = true;
     }
 
-    for (const c of this.cells) c.adjacent = this.neighbors(c).filter((n) => n.mine).length;
+    for (const c of this.cells) {
+      c.adjacent = c.frozen ? 0 : this.neighbors(c).filter((n) => n.mine).length;
+    }
     this.generated = true;
   }
 
   /** Reveals a safe cell; flood-fills through zeros. Returns BFS layers (layer 0 = start, each next layer = one chain step). */
   flood(start: Cell): Cell[][] {
-    if (start.revealed || start.mine) return [];
+    if (start.revealed || start.mine || start.frozen) return [];
     const layers: Cell[][] = [];
     let frontier = [start];
     start.revealed = true;
@@ -93,7 +128,7 @@ export class Board {
         c.flagged = false;
         if (c.adjacent !== 0) continue;
         for (const n of this.neighbors(c)) {
-          if (n.revealed || n.mine || n.flagged) continue;
+          if (n.revealed || n.mine || n.flagged || n.frozen) continue;
           n.revealed = true;
           next.push(n);
         }
@@ -104,7 +139,7 @@ export class Board {
   }
 
   safeRemaining(): number {
-    return this.cells.filter((c) => !c.mine && !c.revealed).length;
+    return this.cells.filter((c) => !c.mine && !c.defused && !c.frozen && !c.revealed).length;
   }
 
   /** Recomputes numbers after a mine is defused/neutralized. */

@@ -141,7 +141,7 @@ const hud = new Hud(game, {
     } else if (game.status === 'victory') {
       restart();
     } else if (game.cleared && game.status === 'playing') {
-      hud.showClearedPopup();
+      game.advance();
     }
   },
   advance: () => {
@@ -321,6 +321,10 @@ function wire(g: Game) {
         sfx.jackpotFanfare();
         hud.showBonus(['🥢 ВЫТЯНУЛ ДЛИННУЮ СПИЧКУ!', `+$${e.bonusBits} BITS ЗА 50/50`], false);
         hud.log(`🥢 <b>Вытянул длинную спичку:</b> успешное угадывание в ситуации 50/50! Награда +$${e.bonusBits} Bits`, 'money');
+        break;
+      case 'frozenCellClicked':
+        sfx.iceClink();
+        fx.banner(headerEl, '🧊 ЯЧЕЙКА ЗАМОРОЖЕНА (нельзя открыть)', 'freeze');
         break;
       case 'roundEnd':
         hud.log(`🏁 <b>Сектор закрыт:</b> ${e.summary.score}/${e.summary.target} · Награда +$${e.summary.bits}`, 'money');

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Board, Cell } from '../core/board';
+import { tooltip } from '../ui/tooltip';
 
 /** Classic Minesweeper palette. */
 const FACE = '#c0c0c0';
@@ -8,7 +9,7 @@ const SHADOW = '#808080';
 const NUM_COLORS = ['', '#0000ff', '#008000', '#ff0000', '#000080', '#800000', '#008080', '#000000', '#808080'];
 const TEX = 32; // low-res + nearest filter = crisp pixel look
 
-type TileKind = 'hidden' | 'hover' | 'pressed' | 'flag' | 'slotFlag' | 'slotGlow' | 'mine' | 'exploded' | 'wrongFlag' | 'defused' | 'checking' | 'fairy' | `n${number}`;
+type TileKind = 'hidden' | 'hover' | 'pressed' | 'flag' | 'slotFlag' | 'slotGlow' | 'mine' | 'exploded' | 'wrongFlag' | 'defused' | 'checking' | 'fairy' | 'frozen' | `n${number}`;
 
 function makeTexture(draw: (ctx: CanvasRenderingContext2D, s: number) => void): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
@@ -213,6 +214,49 @@ function fairyBottle(ctx: CanvasRenderingContext2D, s: number) {
   ctx.fillRect(c + 2 * u, 6 * u, 0.8 * u, 0.8 * u);
 }
 
+function frozenBlock(ctx: CanvasRenderingContext2D, s: number) {
+  // Deep icy cyan background
+  ctx.fillStyle = '#8ce0ff';
+  ctx.fillRect(0, 0, s, s);
+
+  // Bevel: white frost highlight at top/left, deep ice shadow at bottom/right
+  ctx.fillStyle = '#eaf8ff';
+  ctx.fillRect(0, 0, s, 2);
+  ctx.fillRect(0, 0, 2, s);
+  ctx.fillStyle = '#3399cc';
+  ctx.fillRect(0, s - 2, s, 2);
+  ctx.fillRect(s - 2, 0, 2, s);
+
+  // Inner ice border
+  ctx.strokeStyle = '#55bbdd';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(2, 2, s - 4, s - 4);
+
+  // Ice crystal / snowflake in center
+  const u = s / 16;
+  const cx = s / 2;
+  const cy = s / 2;
+
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 5 * u); ctx.lineTo(cx, cy + 5 * u);
+  ctx.moveTo(cx - 5 * u, cy); ctx.lineTo(cx + 5 * u, cy);
+  ctx.moveTo(cx - 3.5 * u, cy - 3.5 * u); ctx.lineTo(cx + 3.5 * u, cy + 3.5 * u);
+  ctx.moveTo(cx - 3.5 * u, cy + 3.5 * u); ctx.lineTo(cx + 3.5 * u, cy - 3.5 * u);
+  ctx.stroke();
+
+  // Ice core sparkle
+  ctx.fillStyle = '#0077aa';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 1.6 * u, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 0.9 * u, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 function buildMaterials(): Record<TileKind, THREE.MeshBasicMaterial> {
   const mk = (draw: (c: CanvasRenderingContext2D, s: number) => void) =>
     new THREE.MeshBasicMaterial({ map: makeTexture(draw) });
@@ -247,6 +291,7 @@ function buildMaterials(): Record<TileKind, THREE.MeshBasicMaterial> {
       c.lineWidth = 1;
       c.strokeRect(1, 1, s - 2, s - 2);
     }),
+    frozen: mk((c, s) => frozenBlock(c, s)),
   };
   for (let n = 0; n <= 8; n++) mats[`n${n}`] = mk((c, s) => (sunken(c, s), n && digit(c, s, n)));
   return mats as Record<TileKind, THREE.MeshBasicMaterial>;
@@ -375,6 +420,7 @@ export class BoardView {
   }
 
   private kindOf(c: Cell): TileKind {
+    if (c.frozen) return 'frozen';
     if (c === this.checkingCell) return 'checking';
     if (c.exploded) return 'exploded';
     if (c.defused) return 'defused';
@@ -406,7 +452,7 @@ export class BoardView {
       else this.pop.set(mesh, nt);
     }
 
-    if (this.hover && !this.hover.revealed) {
+    if (this.hover && !this.hover.revealed && !this.hover.frozen) {
       this.glow.visible = true;
       this.glow.position.set(this.cellPos(this.hover.x, this.hover.y).x, this.cellPos(this.hover.x, this.hover.y).y, 1);
       const hue = (this.time * 0.15) % 1;
@@ -455,10 +501,27 @@ export class BoardView {
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     el.addEventListener('pointermove', (e) => {
       const c = this.pick(e);
-      if (c !== this.hover) (this.hover = c), this.sync();
+      if (c !== this.hover) {
+        this.hover = c;
+        this.sync();
+      }
+      if (c && c.revealed && c.hasFairy) {
+        const text = `<b>🧚 Фея в банке</b>Второе дыхание: при гибели забег не сбрасывается к началу. Фея спасает вас и перезапускает текущий сектор с полным запасом HP!`;
+        tooltip.show(text, e.clientX, e.clientY);
+      } else if (c && c.frozen) {
+        const text = `<b>🧊 Замороженная ячейка</b>Заблокирована вечной мерзлотой. Препятствие: не содержит мин и не может быть открыта.`;
+        tooltip.show(text, e.clientX, e.clientY);
+      } else {
+        tooltip.hide();
+      }
     });
-    el.addEventListener('pointerleave', () => ((this.hover = this.pressed = undefined), this.sync()));
+    el.addEventListener('pointerleave', () => {
+      this.hover = this.pressed = undefined;
+      tooltip.hide();
+      this.sync();
+    });
     el.addEventListener('pointerdown', (e) => {
+      tooltip.hide();
       const c = this.pick(e);
       if (!c) return;
       if (e.pointerType === 'mouse' && e.button === 2) return this.act(c, 'flag');

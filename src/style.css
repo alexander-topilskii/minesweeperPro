@@ -146,14 +146,13 @@ body {
 }
 
 .dock-slot.empty {
-  background: #b4b4b4;
-  border: 2px solid;
-  border-color: var(--dark) var(--light) var(--light) var(--dark);
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .dock-slot.empty .dock-icon {
-  opacity: 0.18;
-  filter: grayscale(1);
+  display: none;
 }
 
 .dock-slot.empty .dock-badge {
@@ -869,6 +868,10 @@ legend { padding: 0 4px; }
 
 .status-notify.warning {
   color: #b85d00;
+}
+
+.status-notify.freeze {
+  color: #0066aa;
 }
 
 .status-notify small {
@@ -1967,4 +1970,30 @@ legend { padding: 0 4px; }
   .shop-grid { grid-template-columns: 1fr; }
   .inv-columns { grid-template-columns: 1fr; }
   .shop-bottom { flex-wrap: wrap; justify-content: center; gap: 8px; }
+}
+
+/* Windows 95 Canonical Tooltip (ScreenTip) */
+.game-tooltip {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  background: #ffffe1;
+  color: #000000;
+  border: 1px solid #000000;
+  box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.35);
+  padding: 6px 10px;
+  font-family: 'MS Sans Serif', Tahoma, 'Segoe UI', sans-serif;
+  font-size: 11px;
+  line-height: 1.4;
+  max-width: 260px;
+  border-radius: 0;
+  display: none;
+  white-space: normal;
+}
+
+.game-tooltip b {
+  color: #007733;
+  display: block;
+  margin-bottom: 3px;
+  font-size: 11.5px;
 }

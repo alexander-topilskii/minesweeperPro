@@ -50,7 +50,8 @@ export type GameEvent =
   | { type: 'fairyFound'; cell: Cell }
   | { type: 'fairyRevived' }
   | { type: 'bossFairyReward' }
-  | { type: 'longMatch'; bonusBits: number; cell: Cell };
+  | { type: 'longMatch'; bonusBits: number; cell: Cell }
+  | { type: 'frozenCellClicked'; cell: Cell };
 
 export class Game {
   board!: Board;
@@ -158,6 +159,7 @@ export class Game {
 
   get stageName(): string {
     if (this.currentEncounterType === 'boss') return `👑 ${this.map.bossName}`;
+    if (this.board && this.board.frozenCount > 0) return '🧊 Крио-сектор';
     if (this.currentEncounterType === 'elite') return '💀 Элитный сектор';
     return ['Стандартный сканер', 'Глубокий сканер', 'Аномалия'][this.stage % 3];
   }
@@ -170,6 +172,21 @@ export class Game {
     let boardW: number = CONFIG.board.w;
     let boardH: number = CONFIG.board.h;
     let clicks: number = CONFIG.clicks;
+    let frozenCount = 0;
+
+    const isAct2 = this.map ? this.map.act === 2 : Math.floor(stage / 8) === 1;
+    if (isAct2) {
+      // Act 2: All sectors are 14x14 (same size as Act 1 Boss arena)
+      boardW = 14;
+      boardH = 14;
+      mineCount = 18 + Math.min(6, stage % 8);
+      clicks = encounterType === 'boss' ? CONFIG.bossClicks : 60;
+
+      // Cryo sectors with frozen impassable cells in Act 2
+      if (encounterType !== 'boss' && ((stage % 2 === 1) || encounterType === 'elite')) {
+        frozenCount = 14;
+      }
+    }
 
     if (encounterType === 'elite') {
       mineCount += 3;
@@ -177,10 +194,9 @@ export class Game {
     } else if (encounterType === 'boss') {
       boardW = 14;
       boardH = 14;
-      // 14x14 = 196 cells (~2x bigger than standard 10x10=100 cells)
-      mineCount = Math.round(mineCount * 1.5) + 2;
+      mineCount = Math.round(mineCount * 1.4) + 2;
       targetScore = Math.round(targetScore * 1.3);
-      clicks = CONFIG.bossClicks; // 42 clicks for the massive arena
+      clicks = CONFIG.bossClicks; // 70 clicks for massive boss arena
     }
 
     this.halfFlagsDebuff = this.nextLevelHalfFlags;
@@ -192,7 +208,7 @@ export class Game {
     this.specialClear = undefined;
     this.behavior.resetRound();
 
-    this.board = new Board(boardW, boardH, mineCount);
+    this.board = new Board(boardW, boardH, mineCount, Math.random, frozenCount);
     this.score = 0;
     this.target = targetScore;
     this.clicks = clicks;
@@ -545,6 +561,11 @@ export class Game {
     const cell = this.board.get(x, y);
     if (!cell || this.status !== 'playing' || this.isSlotRolling || this.clicks <= 0) return;
 
+    if (cell.frozen) {
+      this.emit({ type: 'frozenCellClicked', cell });
+      return;
+    }
+
     // If consumable targeting mode is active:
     if (this.activeConsumableIdx !== undefined) {
       const activeCon = this.consumables[this.activeConsumableIdx];
@@ -565,7 +586,7 @@ export class Game {
   toggleFlag(x: number, y: number): void {
     if (this.isSlotRolling) return;
     const cell = this.board.get(x, y);
-    if (!cell || this.status !== 'playing' || cell.revealed) return;
+    if (!cell || this.status !== 'playing' || cell.revealed || cell.frozen) return;
 
     // If cell already has slotFlag, remove it and refund charge
     if (cell.slotFlag) {
@@ -783,7 +804,7 @@ export class Game {
     if (this.clicks <= 0 || cell.mine || cell.adjacent === 0 || cell.exploded || cell.defused) return;
     const ns = this.board.neighbors(cell);
     if (ns.filter((n) => n.flagged || n.exploded || n.defused).length !== cell.adjacent) return;
-    const targets = ns.filter((n) => !n.revealed && !n.flagged);
+    const targets = ns.filter((n) => !n.revealed && !n.flagged && !n.frozen);
     if (!targets.length) return;
 
     this.behavior.onChord();
@@ -947,9 +968,12 @@ export class Game {
         return;
       } else {
         // Battery depleted after achieving the goal:
-        // Do NOT auto-advance to map!
-        // Show victory popup plate so the player sees stage stats and clicks "Дальше ▶"!
-        this.emit({ type: 'stageCompletePending' });
+        // Popup is only shown if the field was fully swept/cleared! Otherwise immediately open map.
+        if (this.specialClear === 'full' || this.specialClear === 'blind') {
+          this.emit({ type: 'stageCompletePending' });
+        } else {
+          this.endRound();
+        }
         this.emit({ type: 'change' });
         return;
       }
