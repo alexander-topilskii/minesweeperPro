@@ -453,7 +453,6 @@ export class Hud {
           <span class="dicon">🎉</span>
           <div class="dialog-content">
             <div class="cleared-header">СЕКТОР ${g.sector} ЗАЧИЩЕН!</div>
-            <div class="cleared-sub">Норма очков успешно набрана.</div>
             <div class="stats-box bevel-in">
               <div class="stat-row">
                 <span>Сектор:</span>
@@ -476,9 +475,6 @@ export class Hud {
                 <span>Overcharge:</span>
                 <b class="highlight-overcharge">Ур. ${overchargeLvl} (+$${overchargeLvl})</b>
               </div>` : ''}
-            </div>
-            <div class="cleared-prompt">
-              Перейдите к карте маршрута для выбора следующего сектора или продолжите исследовать поле для фарма Overcharge.
             </div>
           </div>
         </div>

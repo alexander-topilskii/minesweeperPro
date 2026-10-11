@@ -12,6 +12,7 @@ import { Sfx } from './audio/sfx';
 const STARTER: string[] = [];
 
 const boardEl = document.getElementById('board')!;
+const headerEl = (document.querySelector('.header') || boardEl) as HTMLElement;
 const sfx = new Sfx();
 const fx = new Fx();
 let game = new Game(STARTER.map(getModule));
@@ -47,7 +48,7 @@ const mapView = new MapView(game, {
     view.build(game.board);
     hud.render();
     mapView.render();
-    fx.banner(boardEl, `${node.name.toUpperCase()}\nЦЕЛЬ: ${game.target}`, node.type === 'boss' ? 'rainbow' : 'bits');
+    fx.banner(headerEl, `${node.name.toUpperCase()}\nЦЕЛЬ: ${game.target}`, node.type === 'boss' ? 'rainbow' : 'bits');
   },
   onOpenShop: () => {
     sfx.relay();
@@ -80,7 +81,7 @@ const saveProgress = () => {
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
     sfx.relay();
-    fx.banner(boardEl, '💾 ПРОГРЕСС СОХРАНЁН!', 'bits');
+    fx.banner(headerEl, '💾 ПРОГРЕСС СОХРАНЁН!', 'bits');
     hud.showBonus(['💾 ПРОГРЕСС СОХРАНЁН', 'В ЛОКАЛЬНОЕ ХРАНИЛИЩЕ'], false);
   } catch (err) {
     console.error('Save failed', err);
@@ -101,7 +102,7 @@ const restart = () => {
   mapView.render();
   sfx.click();
   hud.log('── Начат новый забег ──', 'sep');
-  fx.banner(boardEl, 'НОВЫЙ ЗАБЕГ\nС НАЧАЛА', 'rainbow');
+  fx.banner(headerEl, 'НОВЫЙ ЗАБЕГ\nС НАЧАЛА', 'rainbow');
 };
 
 document.getElementById('btn-menu-save')?.addEventListener('click', saveProgress);
@@ -370,7 +371,7 @@ const runSlotJackpotRoll = async () => {
     if (lightsContainer) lightsContainer.className = 'board-lights jackpot';
 
     fx.banner(
-      boardEl,
+      headerEl,
       `🎰 7-7-7 ДЖЕКПОТ!\n+$${result.bits} · +${result.score} PTS`,
       'rainbow slot-result',
     );
@@ -399,7 +400,7 @@ const runSlotJackpotRoll = async () => {
       ? `💥 СБОЙ СЛОТА: ${result.minesHit} ИЗ 3 МИН\n-1 HP · ${result.minesHit === 1 ? '1 МИНА' : '2 МИНЫ'} ПОМЕЧЕНЫ ФЛАГОМ`
       : `💥 СБОЙ СЛОТА: 0 ИЗ 3 МИН\n-1 HP · СЕРИЯ СБИТА`;
 
-    fx.banner(boardEl, hitText, 'hurt slot-result bust');
+    fx.banner(headerEl, hitText, 'hurt slot-result bust');
     hud.showBonus([
       result.minesHit > 0 ? `⚠️ УГАДАНО ${result.minesHit} ИЗ 3 МИН` : `💥 0 ИЗ 3 МИН`,
       `💥 -1 HP · СЕРИЯ СБИТА`,
@@ -487,14 +488,14 @@ function wire(g: Game) {
           if (daredevilCallout) {
             sfx.jackpotFanfare();
             if (daredevilCallout.includes('ВКЛЮЧЕНО')) {
-              fx.banner(boardEl, '🤩 «ОТВАГА И СЛАБОУМИЕ»!\n×10 МНОЖИТЕЛЬ АКТИВЕН', 'rainbow');
+              fx.banner(headerEl, '🤩 «ОТВАГА И СЛАБОУМИЕ»!\n×10 МНОЖИТЕЛЬ АКТИВЕН', 'rainbow');
             }
           }
           const speedCallout = t.callouts.find((c) => c.includes('НЕ УСЛЕДИТЬ'));
           if (speedCallout) {
             if (speedCallout.includes('ВКЛЮЧЕНО')) {
               sfx.cascade(8);
-              fx.banner(boardEl, '🚀 «НЕ УСЛЕДИТЬ»!\n×3 СКОРОСТНОЙ БОНУС!', 'rainbow');
+              fx.banner(headerEl, '🚀 «НЕ УСЛЕДИТЬ»!\n×3 СКОРОСТНОЙ БОНУС!', 'rainbow');
             } else {
               sfx.cascade(4);
             }
@@ -516,20 +517,20 @@ function wire(g: Game) {
         break;
       }
       case 'cleared':
-        fx.banner(boardEl, 'ЦЕЛЬ ВЫПОЛНЕНА!\nСЕКТОР ПРОЙДЕН', 'rainbow');
+        fx.banner(headerEl, 'ЦЕЛЬ ВЫПОЛНЕНА!\nСЕКТОР ПРОЙДЕН', 'rainbow');
         sfx.jackpotFanfare();
         hud.showBonus(['🎉 ЦЕЛЬ ВЫПОЛНЕНА!', '🏁 ПРОДОЛЖИТЬ ИЛИ НАБИВАТЬ OVERCHARGE!'], false);
         hud.log(`🏆 <b>Сектор пройден!</b> Цель (${g.target}) выполнена`, 'money');
         break;
       case 'overchargeUp':
-        fx.banner(boardEl, `⚡ OVERCHARGE УР. ${e.level}!\n+$1 БОНУС`, 'bits');
+        fx.banner(headerEl, `⚡ OVERCHARGE УР. ${e.level}!\n+$1 БОНУС`, 'bits');
         sfx.cascade(8);
         hud.showBonus([`⚡ OVERCHARGE УР. ${e.level}!`, `+$1 БОНУС ДЛЯ МАГАЗИНА`], false);
         hud.log(`⚡ <b>Overcharge Ур. ${e.level}:</b> +$1 к награде`, 'super');
         break;
       case 'roundEnd':
         hud.log(`🏁 <b>Сектор закрыт:</b> ${e.summary.score}/${e.summary.target} · Награда +$${e.summary.bits}`, 'money');
-        fx.banner(boardEl, `+$${e.summary.bits}<small>${e.summary.score} / ${e.summary.target}</small>`, 'bits');
+        fx.banner(headerEl, `+$${e.summary.bits}<small>${e.summary.score} / ${e.summary.target}</small>`, 'bits');
         setTimeout(() => {
           if (g === game) {
             hud.render();
