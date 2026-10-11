@@ -213,8 +213,8 @@ export class MapView {
   }
 
   private floorY(floor: number): number {
-    // Floor 0 at bottom, boss at top
-    return +(91 - floor * 13.5).toFixed(2);
+    // Floor 0 at bottom, boss at top (0..7)
+    return +(91 - floor * 11.5).toFixed(2);
   }
   // ---------- REST SITE MODAL ----------
 

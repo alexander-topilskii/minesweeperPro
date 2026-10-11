@@ -234,7 +234,7 @@ export class Game {
     this.currentMapNode = node;
 
     if (node.type === 'battle' || node.type === 'elite' || node.type === 'boss') {
-      const stageIndex = (this.map.act - 1) * 6 + node.floor;
+      const stageIndex = (this.map.act - 1) * 8 + node.floor;
       this.startStage(stageIndex, node.type);
     } else if (node.type === 'shop') {
       this.status = 'shop';

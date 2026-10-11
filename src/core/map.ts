@@ -39,8 +39,8 @@ export const MAP_COLS = 5;
  */
 export function generateActMap(act: number): MapData {
   const bossName = BOSS_NAMES[(act - 1) % BOSS_NAMES.length];
-  const floorsCount = 7; // 0..6
-  const lastPathFloor = 5;
+  const floorsCount = 8; // 0..7
+  const lastPathFloor = 6;
   const center = Math.floor(MAP_COLS / 2);
 
   // ---- 1. Walk non-crossing paths ----
@@ -106,7 +106,7 @@ export function generateActMap(act: number): MapData {
   // Guarantee at least one shop and one elite on the map
   const midKeys = [...typeAt.keys()].filter((k) => {
     const f = Number(k.split('_')[0]);
-    return f >= 2 && f <= 4;
+    return f >= 2 && f <= 5;
   });
   const ensure = (type: NodeType) => {
     if ([...typeAt.values()].includes(type)) return;
@@ -135,7 +135,7 @@ export function generateActMap(act: number): MapData {
       const type = typeAt.get(key(f, c))!;
       const next =
         f === lastPathFloor
-          ? [id(6, center)]
+          ? [id(7, center)]
           : [...(edges.get(key(f, c)) ?? [])].map((k) => id(f + 1, Number(k.split('_')[1])));
       nodes.push({
         id: id(f, c),
@@ -150,8 +150,8 @@ export function generateActMap(act: number): MapData {
     }
   }
   nodes.push({
-    id: id(6, center),
-    floor: 6,
+    id: id(7, center),
+    floor: 7,
     col: center,
     type: 'boss',
     name: `БОСС: ${bossName}`,

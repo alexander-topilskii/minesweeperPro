@@ -226,33 +226,14 @@ export class Hud {
         : `<div class="module empty">пустой слот</div>`;
     }).join('');
 
-    $('status-stage').textContent = isShop
-      ? `Торговый пост Сектора ${g.sector}`
-      : `Сектор ${g.sector}/${CONFIG.sectors} · ${g.stageName}`;
+    const act = g.map ? g.map.act : 1;
+    const sector = g.currentMapNode ? g.currentMapNode.floor + 1 : (g.stage % 8) + 1;
+    $('status-stage').textContent = `${act}-${sector}/8`;
 
-    if (g.halfFlagsDebuff && g.maxFlags !== undefined) {
-      const flagsUsed = g.board ? g.board.cells.filter((c) => c.flagged).length : 0;
-      $('status-hint').textContent = `⚠️ ДЕБАФ «ПОЛОВИНА ФЛАГОВ»: установлено ${flagsUsed} из ${g.maxFlags} макс.!`;
-    } else if (isShop) {
-      $('status-hint').textContent = '🛒 Торговый пост: покупайте модули и Флаги-Слоты 🎰 за $ · Нажмите «В БОЙ ▶» для старта';
-    } else if (g.activeConsumableIdx !== undefined) {
-      const con = g.consumables[g.activeConsumableIdx];
-      const leftStr = con?.charges !== undefined ? ` (${con.charges} в запасе)` : '';
-      $('status-hint').textContent = `🎯 [РЕЖИМ ПРИЦЕЛА]: Кликните ЛКМ/ПКМ по закрытой клетке для установки «${con?.name}»${leftStr}`;
-    } else if (g.cleared && g.status === 'playing') {
-      $('status-hint').textContent = '😎 Цель выполнена! Нажмите «ПРОДОЛЖИТЬ» для перехода к карте маршрута или набивайте Overcharge';
-    } else if (g.speedDemonActive && g.daredevilActive) {
-      $('status-hint').textContent = '🚀🤩 УЛЬТРА-КОМБО! «НЕ УСЛЕДИТЬ» (×3) + «ОТВАГА» (×10) = ×30 ОЧКОВ!';
-    } else if (g.speedDemonActive) {
-      $('status-hint').textContent = '🚀 РЕЖИМ «НЕ УСЛЕДИТЬ»! Клики быстрее 1 сек приносят ×3 ОЧКОВ! Не замедляйтесь!';
-    } else if (g.daredevilActive) {
-      $('status-hint').textContent = '🤩 РЕЖИМ «ОТВАГА И СЛАБОУМИЕ»! Клики наугад приносят ×10 ОЧКОВ! Клик рядом с цифрой сбросит режим.';
-    } else if (g.fastClicks >= 1) {
-      $('status-hint').textContent = `⚡ Скоростные клики: ${g.fastClicks}/3 (ещё ${3 - g.fastClicks} быстрее 1с до режима «Не уследить» ×3)`;
-    } else if (g.blindClicks >= 2) {
-      $('status-hint').textContent = `🎲 Клики наугад: ${g.blindClicks}/5 (до режима «Отвага и слабоумие» осталось ${5 - g.blindClicks})`;
-    } else {
-      $('status-hint').textContent = 'ЛКМ — скан · ПКМ — флаг · 🚀 3 клика < 1с = ×3 · 🤩 5 наугад = ×10';
+    // Only popup notifications belong in status-hint; do not overwrite active notification
+    const hintEl = $('status-hint');
+    if (hintEl && !hintEl.querySelector('.status-notify')) {
+      hintEl.innerHTML = '';
     }
 
     this.renderOverlay();

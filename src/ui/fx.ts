@@ -88,27 +88,35 @@ export class Fx {
     this.layer.innerHTML = '';
   }
 
-  /** Large centred banner over an element. */
-  banner(over: HTMLElement, html: string, cls = '', durationMs = 1000): void {
-    const r = over.getBoundingClientRect();
-    const el = document.createElement('div');
-    el.className = `float banner ${cls}`;
-    el.innerHTML = html;
-    el.style.left = `${(r.left + r.width / 2).toFixed(1)}px`;
-    el.style.top = `${(r.top + r.height / 2).toFixed(1)}px`;
-    this.layer.appendChild(el);
+  private bannerTimer?: ReturnType<typeof setTimeout>;
 
-    const timer = setTimeout(() => {
-      el.remove();
-    }, durationMs);
+  /** Displays colorful notification text without frame in the bottom-right status pocket (#status-hint). */
+  banner(_over: HTMLElement | null, html: string, cls = '', durationMs = 2800): void {
+    const hintEl = document.getElementById('status-hint');
+    if (!hintEl) return;
 
-    el.addEventListener(
-      'animationend',
-      () => {
-        clearTimeout(timer);
-        el.remove();
-      },
-      { once: true },
-    );
+    if (this.bannerTimer) {
+      clearTimeout(this.bannerTimer);
+      this.bannerTimer = undefined;
+    }
+
+    // Convert newlines to clean separators for horizontal statusbar display
+    const cleanText = html.replace(/\n+/g, ' · ');
+    hintEl.innerHTML = `<span class="status-notify ${cls}">${cleanText}</span>`;
+
+    this.bannerTimer = setTimeout(() => {
+      const span = hintEl.querySelector('.status-notify');
+      if (span) {
+        span.classList.add('fade-out');
+        setTimeout(() => {
+          if (hintEl.querySelector('.status-notify.fade-out')) {
+            hintEl.innerHTML = '';
+          }
+        }, 250);
+      } else {
+        hintEl.innerHTML = '';
+      }
+      this.bannerTimer = undefined;
+    }, Math.max(durationMs, 2200));
   }
 }
