@@ -4,6 +4,7 @@ import { getModule } from './modules/registry';
 import { BoardView } from './render/boardView';
 import { Hud } from './ui/hud';
 import { ShopView } from './ui/shopView';
+import { MapView } from './ui/mapView';
 import { Fx } from './ui/fx';
 import { Sfx } from './audio/sfx';
 
@@ -28,12 +29,35 @@ const view = new BoardView(boardEl, (x, y, action) => {
 const shopView = new ShopView(game, {
   onStartStage: () => {
     game.nextStage();
+    sfx.relay();
+    hud.render();
+    mapView.render();
   },
   onBuy: () => {
     sfx.click();
   },
   onReroll: () => {
     sfx.relay();
+  },
+});
+
+const mapView = new MapView(game, {
+  onSelectBattle: (node) => {
+    sfx.click();
+    view.build(game.board);
+    hud.render();
+    mapView.render();
+    fx.banner(boardEl, `${node.name.toUpperCase()}\nЦЕЛЬ: ${game.target}`, node.type === 'boss' ? 'rainbow' : 'bits');
+  },
+  onOpenShop: () => {
+    sfx.relay();
+    hud.render();
+    shopView.render();
+  },
+  onPlaySfx: (type) => {
+    if (type === 'fanfare') sfx.jackpotFanfare();
+    else if (type === 'relay') sfx.relay();
+    else sfx.click();
   },
 });
 
@@ -69,9 +93,11 @@ const restart = () => {
   wire(game);
   hud.setGame(game);
   shopView.setGame(game);
+  mapView.setGame(game);
   view.build(game.board);
   hud.render();
   shopView.render();
+  mapView.render();
   sfx.click();
   fx.banner(boardEl, 'НОВЫЙ ЗАБЕГ\nС НАЧАЛА', 'rainbow');
 };
@@ -476,15 +502,18 @@ function wire(g: Game) {
         break;
       case 'roundEnd':
         fx.banner(boardEl, `+$${e.summary.bits}<small>${e.summary.score} / ${e.summary.target}</small>`, 'bits');
-        if (g.status === 'shop') {
-          setTimeout(() => {
-            if (g === game && g.status === 'shop') {
+        setTimeout(() => {
+          if (g === game) {
+            hud.render();
+            if (g.status === 'map') {
               sfx.relay();
-              hud.render();
+              mapView.render();
+            } else if (g.status === 'shop') {
+              sfx.relay();
               shopView.render();
             }
-          }, 1100);
-        }
+          }
+        }, 1100);
         break;
       case 'moduleFired':
         hud.flashModule(e.id);
@@ -493,6 +522,7 @@ function wire(g: Game) {
       case 'change':
         view.sync();
         hud.render();
+        if (g.status === 'map') mapView.render();
         if (g.status === 'shop') shopView.render();
         break;
     }
@@ -503,3 +533,4 @@ wire(game);
 view.build(game.board);
 hud.render();
 shopView.render();
+mapView.render();

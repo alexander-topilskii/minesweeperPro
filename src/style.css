@@ -97,7 +97,7 @@ body {
 }
 
 .content { flex: 1; display: grid; grid-template-columns: 1fr 260px; gap: 8px; padding: 6px; min-height: 0; }
-[hidden], #game-view[hidden], .content[hidden], .shop-view[hidden] { display: none !important; }
+[hidden], #game-view[hidden], .content[hidden], .shop-view[hidden], .map-view[hidden] { display: none !important; }
 
 /* ===== Game column ===== */
 .game-col { display: flex; flex-direction: column; gap: 6px; min-height: 0; border: 3px solid; border-color: var(--light) var(--shadow) var(--shadow) var(--light); padding: 6px; }
@@ -937,6 +937,320 @@ legend { padding: 0 4px; }
 }
 .btn-start-stage:hover { background: #00cc00; filter: brightness(1.15); box-shadow: 0 0 16px rgba(0, 255, 0, 0.9); }
 
+/* ===== MAP VIEW (SLAY THE SPIRE ACT ROUTE) ===== */
+.map-view {
+  background: var(--face);
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  min-height: 0;
+  flex: 1;
+  width: 100%;
+  box-sizing: border-box;
+  position: relative;
+}
+.map-view[hidden] {
+  display: none !important;
+}
+
+.map-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.map-header {
+  padding: 6px 12px;
+  background: linear-gradient(90deg, #d8d8d8, #e8e8e8);
+  border: 2px solid;
+  border-color: var(--light) var(--shadow) var(--shadow) var(--light);
+}
+
+.map-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.map-title {
+  font-weight: 900;
+  font-size: 14px;
+  letter-spacing: 0.8px;
+  color: #000;
+}
+.map-title b {
+  color: #a00000;
+}
+
+.map-header-stats {
+  display: flex;
+  gap: 16px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  font-weight: bold;
+}
+.map-header-stats b {
+  color: #000080;
+}
+
+.map-hint {
+  font-size: 11px;
+  color: #444;
+  margin-top: 3px;
+  font-weight: bold;
+}
+
+.map-tree-wrapper {
+  flex: 1;
+  min-height: 0;
+  background: #11141a;
+  border-width: 3px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
+}
+
+.map-tree {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.map-connections {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.map-line {
+  stroke-width: 2.5;
+  transition: stroke 0.3s;
+}
+.map-line.visited-path {
+  stroke: #00ffcc;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 5px #00ffcc);
+}
+.map-line.available-path {
+  stroke: #ffea00;
+  stroke-width: 3;
+  stroke-dasharray: 6 4;
+  animation: map-dash-flow 0.8s linear infinite;
+  filter: drop-shadow(0 0 6px #ffea00);
+}
+.map-line.locked-path {
+  stroke: #333a44;
+  stroke-dasharray: 4 4;
+}
+
+@keyframes map-dash-flow {
+  from { stroke-dashoffset: 20; }
+  to { stroke-dashoffset: 0; }
+}
+
+.map-nodes-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.map-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  min-width: 82px;
+  background: #c0c0c0;
+  border-width: 2px;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.15s, box-shadow 0.15s, filter 0.15s;
+  z-index: 2;
+}
+
+.map-node .node-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.map-node .node-label {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  color: #000;
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+.map-node .node-badge {
+  font-size: 8px;
+  font-weight: bold;
+  padding: 1px 4px;
+  margin-top: 2px;
+  border-radius: 2px;
+}
+.map-node .node-badge.current {
+  background: #00ffff;
+  color: #000;
+  animation: pulse-node 1.2s infinite alternate;
+}
+.map-node .node-badge.visited {
+  background: #00aa00;
+  color: #fff;
+}
+.map-node .node-badge.available {
+  background: #ffcc00;
+  color: #000;
+  font-weight: 900;
+}
+
+.map-node.available {
+  border-color: #ffd700 #8b7500 #8b7500 #ffd700;
+  box-shadow: 0 0 14px rgba(255, 215, 0, 0.8), 0 0 24px rgba(255, 120, 0, 0.5);
+  animation: node-available-pulse 1.0s infinite alternate;
+  z-index: 5;
+}
+.map-node.available:hover {
+  transform: translate(-50%, -50%) scale(1.12);
+  filter: brightness(1.15);
+  box-shadow: 0 0 20px rgba(255, 230, 0, 1), 0 0 30px rgba(255, 80, 0, 0.8);
+}
+
+.map-node.current {
+  border-color: #00ffff #008888 #008888 #00ffff;
+  box-shadow: 0 0 12px rgba(0, 255, 255, 0.8);
+  filter: brightness(1.1);
+  z-index: 4;
+}
+
+.map-node.visited {
+  opacity: 0.65;
+  filter: grayscale(0.4);
+}
+
+.map-node.locked {
+  opacity: 0.35;
+  cursor: not-allowed;
+  filter: grayscale(0.8);
+}
+
+/* Boss Node styling */
+.map-node.type-boss {
+  min-width: 120px;
+  padding: 6px 14px;
+  background: linear-gradient(180deg, #ffddaa, #ffbb66);
+}
+.map-node.type-boss .node-icon {
+  font-size: 24px;
+}
+.map-node.type-boss .node-label {
+  font-size: 11px;
+  color: #880000;
+}
+
+.map-footer {
+  padding: 6px 12px;
+  background: #e0e0e0;
+}
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+  font-size: 11px;
+  font-weight: bold;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Interactive Modal Layer inside MapView */
+.map-modal-layer {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 40, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  padding: 16px;
+  box-sizing: border-box;
+}
+.map-modal-layer[hidden] {
+  display: none !important;
+}
+
+.rest-dialog, .event-dialog {
+  width: 440px;
+  max-width: 95vw;
+}
+
+.rest-title, .evt-title {
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  color: #000080;
+}
+.rest-desc, .evt-lore {
+  font-size: 12px;
+  line-height: 1.35;
+  color: #222;
+  margin-bottom: 12px;
+}
+
+.rest-options, .evt-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rest-btn, .evt-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  text-align: left;
+  cursor: pointer;
+  background: #eaeaea;
+}
+.rest-btn:hover, .evt-btn:hover {
+  background: #f4f4f4;
+  filter: brightness(1.05);
+}
+.rest-btn .btn-icon {
+  font-size: 20px;
+}
+.rest-btn .btn-text, .evt-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rest-btn small, .evt-btn small {
+  font-size: 10px;
+  color: #555;
+}
+
+@keyframes node-available-pulse {
+  0% { transform: translate(-50%, -50%) scale(1.0); }
+  100% { transform: translate(-50%, -50%) scale(1.06); }
+}
+
+@keyframes pulse-node {
+  0% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
 
 /* ===== Floating FX (non-blocking) ===== */
 #fx { position: fixed; inset: 0; pointer-events: none; z-index: 20; }

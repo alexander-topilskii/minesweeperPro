@@ -117,10 +117,12 @@ export class Hud {
       }, delay);
     }
 
-    // View toggle between game and shop
+    // View toggle between game, shop, and map
     const isShop = g.status === 'shop';
-    $('game-view').hidden = isShop;
+    const isMap = g.status === 'map';
+    $('game-view').hidden = isShop || isMap;
     $('shop-view').hidden = !isShop;
+    $('map-view').hidden = !isMap;
 
     $('lcd-clicks').textContent = pad(g.clicks, 3);
     $('lcd-clicks').classList.toggle('low', g.clicks <= 3);
@@ -129,7 +131,7 @@ export class Hud {
 
     const smiley = $('smiley');
     smiley.dataset.state = g.status === 'lost' ? 'dead' : g.cleared ? 'cool' : 'normal';
-    smiley.title = g.cleared && g.status === 'playing' ? 'Забрать награду и перейти в Магазин' : g.status === 'lost' ? 'Новый забег' : '';
+    smiley.title = g.cleared && g.status === 'playing' ? 'Забрать награду и перейти к Карте' : g.status === 'lost' ? 'Новый забег' : '';
 
     const pct = Math.min(100, (g.score / g.target) * 100);
     $('target-fill').style.width = `${pct}%`;
@@ -202,7 +204,7 @@ export class Hud {
       const leftStr = con?.charges !== undefined ? ` (${con.charges} в запасе)` : '';
       $('status-hint').textContent = `🎯 [РЕЖИМ ПРИЦЕЛА]: Кликните ЛКМ/ПКМ по закрытой клетке для установки «${con?.name}»${leftStr}`;
     } else if (g.cleared && g.status === 'playing') {
-      $('status-hint').textContent = '😎 Цель выполнена! Нажмите «ПРОДОЛЖИТЬ» для перехода в магазин или набивайте Overcharge';
+      $('status-hint').textContent = '😎 Цель выполнена! Нажмите «ПРОДОЛЖИТЬ» для перехода к карте маршрута или набивайте Overcharge';
     } else {
       $('status-hint').textContent = 'ЛКМ — скан · ПКМ — флаг · 🎰 Соберите 3 флага-слота для джекпота!';
     }
@@ -359,7 +361,7 @@ export class Hud {
               </div>` : ''}
             </div>
             <div class="cleared-prompt">
-              Перейдите в магазин за покупками или продолжите исследовать поле для фарма Overcharge.
+              Перейдите к карте маршрута для выбора следующего сектора или продолжите исследовать поле для фарма Overcharge.
             </div>
           </div>
         </div>

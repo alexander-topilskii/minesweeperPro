@@ -115,8 +115,44 @@
               След: <b id="shop-next-name">Глубокий сканер</b> | Цель: <b id="shop-next-target">960</b> | Мин: <b id="shop-next-mines">18</b>
             </div>
             <button class="btn bevel-out btn-start-stage" id="btn-start-stage">
-              В БОЙ ▶
+              ПРОДОЛЖИТЬ ПУТЬ ▶
             </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MAP VIEW (SLAY THE SPIRE STYLE ACT ROUTE) -->
+      <div class="map-view" id="map-view" hidden>
+        <div class="map-container">
+          <div class="map-header bevel-in">
+            <div class="map-header-top">
+              <div class="map-title">
+                СЕКТОР <span id="map-sector-num">1</span> — НАЗНАЧЕНИЕ: <b id="map-boss-name">ЦЕФЕЙ</b>
+              </div>
+              <div class="map-header-stats">
+                <span>ЖИЗНИ: <b id="map-hp">1/1</b></span>
+                <span>БАЛАНС: <b id="map-bits">$0</b></span>
+              </div>
+            </div>
+            <div class="map-hint">
+              Выберите следующий доступный узел маршрута:
+            </div>
+          </div>
+
+          <div class="map-tree-wrapper bevel-in">
+            <div class="map-tree" id="map-tree"></div>
+            <div class="map-modal-layer" id="map-modal" hidden></div>
+          </div>
+
+          <div class="map-footer bevel-in">
+            <div class="map-legend">
+              <span class="legend-item"><i class="node-icon">⚔️</i> Сектор</span>
+              <span class="legend-item"><i class="node-icon">💀</i> Элита (+$3)</span>
+              <span class="legend-item"><i class="node-icon">🛒</i> Торговый пост</span>
+              <span class="legend-item"><i class="node-icon">❓</i> Аномалия</span>
+              <span class="legend-item"><i class="node-icon">🏕️</i> Привал (+HP)</span>
+              <span class="legend-item"><i class="node-icon">👑</i> БОСС СЕКТОРА</span>
+            </div>
           </div>
         </div>
       </div>

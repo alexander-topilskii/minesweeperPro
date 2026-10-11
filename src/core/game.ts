@@ -3,14 +3,16 @@ import { CONFIG, cashoutMultiplier, cashoutScore, minesFor, targetFor } from '..
 import type { ConsumableDef, ModuleDef, ModuleHooks, TurnContext } from './types';
 import { getModule, sellValue } from '../modules/registry';
 import { getConsumable } from '../modules/consumables';
+import { generateActMap, type MapData, type MapNode, type NodeType } from './map';
 
 /**
  * playing — round in progress (target may already be reached — see `cleared`)
- * shop    — shop phase between rounds: buy/sell modules & consumables, reroll, view next stage
+ * map     — Slay the Spire style act route map navigation
+ * shop    — shop phase: buy/sell modules & consumables, reroll, continue route
  * lost    — round ended below target, run over
  * victory — all sectors done
  */
-export type RoundStatus = 'playing' | 'shop' | 'lost' | 'victory';
+export type RoundStatus = 'playing' | 'map' | 'shop' | 'lost' | 'victory';
 
 export interface TurnResult {
   data: number;
@@ -65,6 +67,11 @@ export class Game {
   /** Per-round scratch state for modules, keyed by module id. */
   roundState: Record<string, unknown> = {};
 
+  /** Slay the Spire style branching map */
+  map!: MapData;
+  currentMapNode?: MapNode;
+  currentEncounterType: NodeType = 'battle';
+
   /** Consumables in player inventory (max CONFIG.consumableSlots). */
   consumables: ConsumableDef[] = [];
   /** If a consumable requires clicking a tile, its index in `consumables`. */
@@ -80,7 +87,9 @@ export class Game {
   private listeners = new Set<(e: GameEvent) => void>();
 
   constructor(public modules: ModuleDef[]) {
-    this.startStage(0);
+    this.map = generateActMap(1);
+    this.currentMapNode = this.map.nodes[0];
+    this.startStage(0, 'battle');
   }
 
   on(fn: (e: GameEvent) => void): () => void {
@@ -111,18 +120,32 @@ export class Game {
   }
 
   get sector(): number {
-    return Math.floor(this.stage / 3) + 1;
+    return this.map ? this.map.act : 1;
   }
 
   get stageName(): string {
+    if (this.currentEncounterType === 'boss') return `👑 ${this.map.bossName}`;
+    if (this.currentEncounterType === 'elite') return '💀 Элитный сектор';
     return ['Стандартный сканер', 'Глубокий сканер', 'Аномалия'][this.stage % 3];
   }
 
-  startStage(stage: number): void {
+  startStage(stage: number, encounterType: NodeType = 'battle'): void {
     this.stage = stage;
-    this.board = new Board(CONFIG.board.w, CONFIG.board.h, minesFor(stage));
+    this.currentEncounterType = encounterType;
+    let mineCount = minesFor(stage);
+    let targetScore = targetFor(stage);
+
+    if (encounterType === 'elite') {
+      mineCount += 3;
+      targetScore = Math.round(targetScore * 1.25);
+    } else if (encounterType === 'boss') {
+      mineCount += 5;
+      targetScore = Math.round(targetScore * 1.5);
+    }
+
+    this.board = new Board(CONFIG.board.w, CONFIG.board.h, mineCount);
     this.score = 0;
-    this.target = targetFor(stage);
+    this.target = targetScore;
     this.clicks = CONFIG.clicks;
     this.hull = this.maxHull;
     this.combo = 0;
@@ -141,9 +164,41 @@ export class Game {
     this.emit({ type: 'change' });
   }
 
+  /** Player selects a destination node on the Act Map */
+  selectMapNode(nodeId: string): void {
+    const node = this.map.nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+
+    this.map.currentNodeId = nodeId;
+    if (!this.map.visitedNodeIds.includes(nodeId)) {
+      this.map.visitedNodeIds.push(nodeId);
+    }
+    this.currentMapNode = node;
+
+    if (node.type === 'battle' || node.type === 'elite' || node.type === 'boss') {
+      const stageIndex = (this.map.act - 1) * 6 + node.floor;
+      this.startStage(stageIndex, node.type);
+    } else if (node.type === 'shop') {
+      this.status = 'shop';
+      this.rerollCost = CONFIG.rerollBaseCost;
+      this.generateShop();
+      this.emit({ type: 'change' });
+    }
+    // 'rest' and 'event' nodes are handled interactively in MapView
+  }
+
+  /** Completes a non-combat node (shop, rest, event) and returns to map */
+  completeNodeAndReturnToMap(): void {
+    if (this.currentMapNode) {
+      this.currentMapNode.completed = true;
+    }
+    this.status = 'map';
+    this.emit({ type: 'change' });
+  }
+
   nextStage(): void {
     if (this.status === 'shop') {
-      this.startStage(this.stage + 1);
+      this.completeNodeAndReturnToMap();
     }
   }
 
@@ -737,15 +792,26 @@ export class Game {
     }
 
     const overcharge = Math.floor((this.score - this.target) / (this.target * CONFIG.overchargeBitStep));
-    const bitsEarned = CONFIG.bitsPerWin + this.clicks * CONFIG.bitsPerClickLeft + Math.max(0, overcharge);
+    let bitsEarned = CONFIG.bitsPerWin + this.clicks * CONFIG.bitsPerClickLeft + Math.max(0, overcharge);
+    if (this.currentEncounterType === 'elite') bitsEarned += 3;
+    if (this.currentEncounterType === 'boss') bitsEarned += 5;
     this.bits += bitsEarned;
 
-    if (this.stage + 1 >= CONFIG.sectors * 3) {
-      this.status = 'victory';
+    if (this.currentMapNode) {
+      this.currentMapNode.completed = true;
+    }
+
+    if (this.currentEncounterType === 'boss') {
+      if (this.map.act >= 3) {
+        this.status = 'victory';
+      } else {
+        const nextAct = this.map.act + 1;
+        this.map = generateActMap(nextAct);
+        this.currentMapNode = this.map.nodes[0];
+        this.status = 'map';
+      }
     } else {
-      this.status = 'shop';
-      this.rerollCost = CONFIG.rerollBaseCost;
-      this.generateShop();
+      this.status = 'map';
     }
     this.emit({ type: 'roundEnd', summary: { score: this.score, target: this.target, bits: bitsEarned } });
   }
