@@ -1,6 +1,6 @@
 import type { Game } from '../core/game';
 import type { MapNode } from '../core/map';
-import { nodeTypeIcon, nodeTypeName } from '../core/map';
+import { MAP_COLS, nodeTypeIcon, nodeTypeName } from '../core/map';
 import { getRandomEvent, type MapEvent } from '../core/events';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -114,19 +114,16 @@ export class MapView {
 
     const currentNode = map.nodes.find((n) => n.id === map.currentNodeId);
     const availableIds = new Set(currentNode ? currentNode.nextIds : []);
+    const visitedSet = new Set(map.visitedNodeIds);
 
-    // SVG connections
-    const svgLines = this.buildSvgConnections(map, availableIds);
+    const svgLines = this.buildSvgConnections(map, availableIds, visitedSet);
 
-    // Node items
     const nodesHtml = map.nodes
       .map((node) => {
         const isCurrent = node.id === map.currentNodeId;
-        const isVisited = map.visitedNodeIds.includes(node.id);
+        const isVisited = visitedSet.has(node.id);
         const isAvailable = availableIds.has(node.id);
-
-        const xPct = this.colX(node.col);
-        const yPct = this.floorY(node.floor);
+        const { x, y } = this.pos(node);
 
         let stateCls = 'locked';
         if (isCurrent) stateCls = 'current';
@@ -134,26 +131,31 @@ export class MapView {
         else if (isAvailable) stateCls = 'available';
 
         const icon = nodeTypeIcon(node.type);
-        const name = nodeTypeName(node.type);
+        const name = node.type === 'boss' ? map.bossName : nodeTypeName(node.type);
+        const delay = ((node.col * 0.17 + node.floor * 0.11) % 1).toFixed(2);
 
         return `
-          <button class="map-node bevel-out ${stateCls} type-${node.type}"
-                  style="left:${xPct}; top:${yPct};"
+          <button class="map-node ${stateCls} type-${node.type}"
+                  style="left:${x}%; top:${y}%; --d:${delay}s"
                   data-node-id="${node.id}"
                   ${isAvailable ? '' : 'disabled'}
                   title="${name}: ${node.desc}">
-            <span class="node-icon">${icon}</span>
+            <span class="node-disc"><span class="node-icon">${icon}</span></span>
+            ${isCurrent ? '<span class="node-you">▲ ВЫ ЗДЕСЬ</span>' : ''}
             <span class="node-label">${name}</span>
-            ${isCurrent ? '<span class="node-badge current">[ВЫ ТУТ]</span>' : ''}
-            ${isVisited && !isCurrent ? '<span class="node-badge visited">✔</span>' : ''}
-            ${isAvailable ? '<span class="node-badge available">ВЫБРАТЬ ▶</span>' : ''}
           </button>
         `;
       })
       .join('');
 
+    const railHtml = Array.from({ length: map.floorsCount }, (_, f) => {
+      const label = f === 0 ? 'СТАРТ' : f === map.floorsCount - 1 ? 'БОСС' : `${f}`;
+      return `<div class="map-rail-mark" style="top:${this.floorY(f)}%">${label}</div>`;
+    }).join('');
+
     treeEl.innerHTML = `
-      <svg class="map-connections" xmlns="http://www.w3.org/2000/svg">
+      <div class="map-rail">${railHtml}</div>
+      <svg class="map-connections" viewBox="0 0 100 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
         ${svgLines}
       </svg>
       <div class="map-nodes-container">
@@ -162,44 +164,58 @@ export class MapView {
     `;
   }
 
-  private buildSvgConnections(map: typeof this.game.map, availableIds: Set<string>): string {
-    const lines: string[] = [];
-    const visitedSet = new Set(map.visitedNodeIds);
+  private buildSvgConnections(
+    map: typeof this.game.map,
+    availableIds: Set<string>,
+    visitedSet: Set<string>,
+  ): string {
+    const locked: string[] = [];
+    const visited: string[] = [];
+    const avail: string[] = [];
 
     for (const node of map.nodes) {
-      const x1 = this.colX(node.col);
-      const y1 = this.floorY(node.floor);
-
+      const a = this.pos(node);
       for (const nextId of node.nextIds) {
         const nextNode = map.nodes.find((n) => n.id === nextId);
         if (!nextNode) continue;
+        const b = this.pos(nextNode);
+        // Gentle S-curve between the two nodes
+        const my = (a.y + b.y) / 2;
+        const d = `M ${a.x} ${a.y} C ${a.x} ${my}, ${b.x} ${my}, ${b.x} ${b.y}`;
 
-        const x2 = this.colX(nextNode.col);
-        const y2 = this.floorY(nextNode.floor);
-
-        let cls = 'locked-path';
         if (visitedSet.has(node.id) && visitedSet.has(nextNode.id)) {
-          cls = 'visited-path';
+          visited.push(`<path d="${d}" class="map-line visited-path" />`);
         } else if (node.id === map.currentNodeId && availableIds.has(nextNode.id)) {
-          cls = 'available-path';
+          avail.push(`<path d="${d}" class="map-line available-path" />`);
+        } else {
+          locked.push(`<path d="${d}" class="map-line locked-path" />`);
         }
-
-        lines.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="map-line ${cls}" />`);
       }
     }
-
-    return lines.join('');
+    // Draw order: locked under, then visited, then available on top
+    return locked.join('') + visited.join('') + avail.join('');
   }
 
-  private colX(col: number): string {
-    return col === 0 ? '22%' : col === 1 ? '50%' : '78%';
+  /** Deterministic pseudo-random in [-1, 1] from a string. */
+  private jitter(seed: string, salt: number): number {
+    let h = 2166136261 ^ salt;
+    for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
+    return ((h >>> 0) % 2000) / 1000 - 1;
   }
 
-  private floorY(floor: number): string {
-    // Floor 0 at bottom (93%), Floor 6 at top (9%)
-    return `${(93 - floor * 14).toFixed(1)}%`;
+  private pos(node: MapNode): { x: number; y: number } {
+    const cols = MAP_COLS;
+    const fixed = node.type === 'boss' || node.floor === 0;
+    const baseX = 14 + (node.col / (cols - 1)) * 72;
+    const jx = fixed ? 0 : this.jitter(node.id, 1) * 4.5;
+    const jy = fixed ? 0 : this.jitter(node.id, 2) * 2.2;
+    return { x: +(baseX + jx).toFixed(2), y: +(this.floorY(node.floor) + jy).toFixed(2) };
   }
 
+  private floorY(floor: number): number {
+    // Floor 0 at bottom, boss at top
+    return +(91 - floor * 13.5).toFixed(2);
+  }
   // ---------- REST SITE MODAL ----------
 
   private showRestModal(_node: MapNode): void {

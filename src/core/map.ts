@@ -27,114 +27,132 @@ const BOSS_NAMES = [
   'СЕРВЕР «АРХИТЕКТОР ОМЕГА»',
 ];
 
+/** Number of lanes (columns) on the act map. */
+export const MAP_COLS = 5;
+
 /**
- * Generates a Slay the Spire branching map for the given act.
- * Floors 0 to 6:
- * - Floor 0: Entry node (the starter level just completed)
- * - Floor 1: 3 nodes (early branches)
- * - Floor 2: 3 nodes (shops, battles, elites)
- * - Floor 3: 3 nodes (events, battles, shops)
- * - Floor 4: 3 nodes (elites, battles, events)
- * - Floor 5: 2 nodes (campfires / rest stations before boss)
- * - Floor 6: 1 node (Act Boss)
+ * Procedurally generates a Slay the Spire–style branching act map.
+ * - Floor 0: entry node (already completed)
+ * - Floors 1..5: nodes produced by walking several non-crossing paths upward
+ * - Floor 5: always rest stops (campfire before the boss)
+ * - Floor 6: Act Boss
  */
 export function generateActMap(act: number): MapData {
   const bossName = BOSS_NAMES[(act - 1) % BOSS_NAMES.length];
-  const nodes: MapNode[] = [];
-  const floorsCount = 7; // 0 to 6
+  const floorsCount = 7; // 0..6
+  const lastPathFloor = 5;
+  const center = Math.floor(MAP_COLS / 2);
 
-  // Floor 0: Origin node
+  // ---- 1. Walk non-crossing paths ----
+  const edges = new Map<string, Set<string>>(); // "f_c" -> Set of "f+1_c"
+  const key = (f: number, c: number) => `${f}_${c}`;
+  const addEdge = (f: number, a: number, b: number) => {
+    const k = key(f, a);
+    if (!edges.has(k)) edges.set(k, new Set());
+    edges.get(k)!.add(key(f + 1, b));
+  };
+  const crosses = (f: number, a: number, b: number): boolean => {
+    for (const [from, tos] of edges) {
+      const [ff, cc] = from.split('_').map(Number);
+      if (ff !== f) continue;
+      for (const to of tos) {
+        const dd = Number(to.split('_')[1]);
+        if ((a < cc && b > dd) || (a > cc && b < dd)) return true;
+      }
+    }
+    return false;
+  };
+
+  const occupied: Set<number>[] = Array.from({ length: floorsCount }, () => new Set());
+  const pathCount = 4;
+  const starts = shuffle([...Array(MAP_COLS).keys()]).slice(0, 3);
+  for (let p = 0; p < pathCount; p++) {
+    let col = p < starts.length ? starts[p] : starts[Math.floor(Math.random() * starts.length)];
+    occupied[1].add(col);
+    for (let f = 1; f < lastPathFloor; f++) {
+      const opts = shuffle([-1, 0, 1])
+        .map((d) => col + d)
+        .filter((c) => c >= 0 && c < MAP_COLS && !crosses(f, col, c));
+      const next = opts.length ? opts[0] : col;
+      addEdge(f, col, next);
+      col = next;
+      occupied[f + 1].add(col);
+    }
+  }
+
+  // ---- 2. Assign node types ----
+  const typeAt = new Map<string, NodeType>();
+  const parentsOf = (f: number, c: number): number[] => {
+    const res: number[] = [];
+    for (const pc of occupied[f - 1] ?? []) if (edges.get(key(f - 1, pc))?.has(key(f, c))) res.push(pc);
+    return res;
+  };
+  for (let f = 1; f <= lastPathFloor; f++) {
+    for (const c of [...occupied[f]].sort((a, b) => a - b)) {
+      let t: NodeType;
+      if (f === 1) t = 'battle';
+      else if (f === lastPathFloor) t = 'rest';
+      else {
+        const parentTypes = parentsOf(f, c).map((pc) => typeAt.get(key(f - 1, pc)));
+        let guard = 0;
+        do {
+          t = rollType(f);
+          guard++;
+        } while (guard < 20 && t !== 'battle' && parentTypes.includes(t));
+      }
+      typeAt.set(key(f, c), t);
+    }
+  }
+  // Guarantee at least one shop and one elite on the map
+  const midKeys = [...typeAt.keys()].filter((k) => {
+    const f = Number(k.split('_')[0]);
+    return f >= 2 && f <= 4;
+  });
+  const ensure = (type: NodeType) => {
+    if ([...typeAt.values()].includes(type)) return;
+    const candidates = midKeys.filter((k) => typeAt.get(k) === 'battle');
+    const pick = (candidates.length ? candidates : midKeys)[Math.floor(Math.random() * (candidates.length || midKeys.length))];
+    if (pick) typeAt.set(pick, type);
+  };
+  ensure('shop');
+  ensure('elite');
+
+  // ---- 3. Build nodes ----
+  const nodes: MapNode[] = [];
+  const id = (f: number, c: number) => `f${f}_c${c}`;
   nodes.push({
-    id: 'f0_c1',
+    id: id(0, center),
     floor: 0,
-    col: 1,
+    col: center,
     type: 'battle',
     name: 'Стартовый сектор',
     desc: 'Начальная точка входа в сектор.',
-    nextIds: ['f1_c0', 'f1_c1', 'f1_c2'],
+    nextIds: [...occupied[1]].sort((a, b) => a - b).map((c) => id(1, c)),
     completed: true,
   });
-
-  // Floor 1: 3 nodes
-  const f1Types: NodeType[] = ['battle', 'event', 'battle'];
-  f1Types.forEach((type, col) => {
-    nodes.push({
-      id: `f1_c${col}`,
-      floor: 1,
-      col,
-      type,
-      name: nodeTypeName(type),
-      desc: nodeTypeDesc(type),
-      nextIds: [],
-      completed: false,
-    });
-  });
-
-  // Floor 2: 3 nodes (Shop, Elite, Battle)
-  const f2Types: NodeType[] = ['elite', 'battle', 'shop'];
-  f2Types.forEach((type, col) => {
-    nodes.push({
-      id: `f2_c${col}`,
-      floor: 2,
-      col,
-      type,
-      name: nodeTypeName(type),
-      desc: nodeTypeDesc(type),
-      nextIds: [],
-      completed: false,
-    });
-  });
-
-  // Floor 3: 3 nodes (Event, Battle, Shop / Battle)
-  const f3Types: NodeType[] = ['event', 'battle', act % 2 === 1 ? 'event' : 'shop'];
-  f3Types.forEach((type, col) => {
-    nodes.push({
-      id: `f3_c${col}`,
-      floor: 3,
-      col,
-      type,
-      name: nodeTypeName(type),
-      desc: nodeTypeDesc(type),
-      nextIds: [],
-      completed: false,
-    });
-  });
-
-  // Floor 4: 3 nodes (Elite, Event, Battle)
-  const f4Types: NodeType[] = ['battle', 'elite', 'event'];
-  f4Types.forEach((type, col) => {
-    nodes.push({
-      id: `f4_c${col}`,
-      floor: 4,
-      col,
-      type,
-      name: nodeTypeName(type),
-      desc: nodeTypeDesc(type),
-      nextIds: [],
-      completed: false,
-    });
-  });
-
-  // Floor 5: 2 nodes (Rest sites before Boss)
-  const f5Types: NodeType[] = ['rest', 'rest'];
-  f5Types.forEach((type, col) => {
-    nodes.push({
-      id: `f5_c${col}`,
-      floor: 5,
-      col: col === 0 ? 0 : 2, // Spaced left & right
-      type,
-      name: nodeTypeName(type),
-      desc: nodeTypeDesc(type),
-      nextIds: ['f6_c1'], // Both lead to Boss
-      completed: false,
-    });
-  });
-
-  // Floor 6: Boss
+  for (let f = 1; f <= lastPathFloor; f++) {
+    for (const c of [...occupied[f]].sort((a, b) => a - b)) {
+      const type = typeAt.get(key(f, c))!;
+      const next =
+        f === lastPathFloor
+          ? [id(6, center)]
+          : [...(edges.get(key(f, c)) ?? [])].map((k) => id(f + 1, Number(k.split('_')[1])));
+      nodes.push({
+        id: id(f, c),
+        floor: f,
+        col: c,
+        type,
+        name: nodeTypeName(type),
+        desc: nodeTypeDesc(type),
+        nextIds: next,
+        completed: false,
+      });
+    }
+  }
   nodes.push({
-    id: 'f6_c1',
+    id: id(6, center),
     floor: 6,
-    col: 1,
+    col: center,
     type: 'boss',
     name: `БОСС: ${bossName}`,
     desc: 'Главный сервер сектора. Финальное испытание акта.',
@@ -142,41 +160,35 @@ export function generateActMap(act: number): MapData {
     completed: false,
   });
 
-  // Connect Floor 1 to Floor 2
-  connect(nodes, 'f1_c0', ['f2_c0', 'f2_c1']);
-  connect(nodes, 'f1_c1', ['f2_c0', 'f2_c1', 'f2_c2']);
-  connect(nodes, 'f1_c2', ['f2_c1', 'f2_c2']);
-
-  // Connect Floor 2 to Floor 3
-  connect(nodes, 'f2_c0', ['f3_c0', 'f3_c1']);
-  connect(nodes, 'f2_c1', ['f3_c0', 'f3_c1', 'f3_c2']);
-  connect(nodes, 'f2_c2', ['f3_c1', 'f3_c2']);
-
-  // Connect Floor 3 to Floor 4
-  connect(nodes, 'f3_c0', ['f4_c0', 'f4_c1']);
-  connect(nodes, 'f3_c1', ['f4_c0', 'f4_c1', 'f4_c2']);
-  connect(nodes, 'f3_c2', ['f4_c1', 'f4_c2']);
-
-  // Connect Floor 4 to Floor 5 (f5_c0 at left, f5_c1 at right)
-  connect(nodes, 'f4_c0', ['f5_c0']);
-  connect(nodes, 'f4_c1', ['f5_c0', 'f5_c1']);
-  connect(nodes, 'f4_c2', ['f5_c1']);
-
   return {
     act,
     floorsCount,
     bossName,
     nodes,
-    currentNodeId: 'f0_c1',
-    visitedNodeIds: ['f0_c1'],
+    currentNodeId: id(0, center),
+    visitedNodeIds: [id(0, center)],
   };
 }
 
-function connect(nodes: MapNode[], fromId: string, toIds: string[]): void {
-  const from = nodes.find((n) => n.id === fromId);
-  if (from) {
-    from.nextIds = Array.from(new Set([...from.nextIds, ...toIds]));
+function rollType(floor: number): NodeType {
+  const r = Math.random();
+  if (floor === 2) {
+    if (r < 0.55) return 'battle';
+    if (r < 0.78) return 'event';
+    return 'shop';
   }
+  if (r < 0.42) return 'battle';
+  if (r < 0.62) return 'event';
+  if (r < 0.8) return 'elite';
+  return 'shop';
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
 export function nodeTypeName(type: NodeType): string {
