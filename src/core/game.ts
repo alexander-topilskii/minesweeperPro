@@ -67,6 +67,11 @@ export class Game {
   /** Per-round scratch state for modules, keyed by module id. */
   roundState: Record<string, unknown> = {};
 
+  /** Number of consecutive blind clicks (with 0 revealed neighbors) */
+  blindClicks = 0;
+  /** Active state of "Отвага и слабоумие" bonus mode */
+  daredevilActive = false;
+
   /** Slay the Spire style branching map */
   map!: MapData;
   currentMapNode?: MapNode;
@@ -158,6 +163,8 @@ export class Game {
     this.isCashoutRolling = false;
     this.isSlotRolling = false;
     this.lossReason = undefined;
+    this.blindClicks = 0;
+    this.daredevilActive = false;
     this.status = 'playing';
     this.runHook('onRoundStart', (h) => h(this));
     this.emit({ type: 'newBoard' });
@@ -642,10 +649,43 @@ export class Game {
   }
 
   private reveal(cell: Cell): void {
+    const ns = this.board.neighbors(cell);
+    const hasRevealedNeighbor = ns.some((n) => n.revealed);
+    const wasBlind = !hasRevealedNeighbor;
+
     if (!this.board.generated) this.board.generate(cell);
     const ctx = this.beginTurn();
-    if (cell.mine) this.hitMine(cell, ctx);
-    else this.openSafe(cell, ctx);
+
+    if (cell.mine) {
+      // Подрыв: обнуление бонуса «Отвага и слабоумие»
+      this.blindClicks = 0;
+      this.daredevilActive = false;
+      this.hitMine(cell, ctx);
+    } else {
+      // Безопасный клик
+      if (wasBlind) {
+        this.blindClicks++;
+        if (this.daredevilActive) {
+          ctx.xMult *= 10;
+          ctx.callouts.unshift('🤩 «ОТВАГА И СЛАБОУМИЕ» ×10!');
+        } else if (this.blindClicks >= 5) {
+          this.daredevilActive = true;
+          ctx.xMult *= 10;
+          ctx.callouts.unshift('🤩 «ОТВАГА И СЛАБОУМИЕ» ВКЛЮЧЕНО! ×10 ОЧКОВ!');
+        } else {
+          ctx.callouts.push(`🎲 НАУГАД: ${this.blindClicks}/5`);
+        }
+      } else {
+        // Клик рядом с открытой цифрой: обнуление бонуса
+        if (this.daredevilActive) {
+          ctx.callouts.push('😌 РАСЧЁТЛИВЫЙ КЛИК: РЕЖИМ СБРОШЕН');
+        }
+        this.blindClicks = 0;
+        this.daredevilActive = false;
+      }
+      this.openSafe(cell, ctx);
+    }
+
     this.endTurn(ctx, cell);
   }
 
@@ -655,6 +695,13 @@ export class Game {
     if (ns.filter((n) => n.flagged || n.exploded).length !== cell.adjacent) return;
     const targets = ns.filter((n) => !n.revealed && !n.flagged);
     if (!targets.length) return;
+
+    // Чорд — это продуманный клик по открытой цифре, сбрасывает режим наугад
+    if (this.daredevilActive) {
+      this.daredevilActive = false;
+    }
+    this.blindClicks = 0;
+
     const ctx = this.beginTurn();
     for (const t of targets) {
       if (t.revealed) continue;

@@ -130,8 +130,25 @@ export class Hud {
     $('lcd-score').textContent = pad(this.displayedScore, 6);
 
     const smiley = $('smiley');
-    smiley.dataset.state = g.status === 'lost' ? 'dead' : g.cleared ? 'cool' : 'normal';
-    smiley.title = g.cleared && g.status === 'playing' ? 'Забрать награду и перейти к Карте' : g.status === 'lost' ? 'Новый забег' : '';
+    if (g.status === 'lost') {
+      smiley.dataset.state = 'dead';
+      smiley.title = 'Новый забег';
+    } else if (g.daredevilActive) {
+      smiley.dataset.state = 'daredevil';
+      smiley.title = '🤩 РЕЖИМ «ОТВАГА И СЛАБОУМИЕ» АКТИВЕН! ×10 ОЧКОВ ЗА КЛИК НАУГАД!';
+    } else if (g.cleared) {
+      smiley.dataset.state = 'cool';
+      smiley.title = 'Забрать награду и перейти к Карте';
+    } else {
+      smiley.dataset.state = 'normal';
+      smiley.title = '';
+    }
+
+    // Toggle shimmering daredevil frame on board
+    const boardFrame = document.querySelector('.board-frame');
+    if (boardFrame) {
+      boardFrame.classList.toggle('daredevil', g.daredevilActive);
+    }
 
     const pct = Math.min(100, (g.score / g.target) * 100);
     $('target-fill').style.width = `${pct}%`;
@@ -205,8 +222,12 @@ export class Hud {
       $('status-hint').textContent = `🎯 [РЕЖИМ ПРИЦЕЛА]: Кликните ЛКМ/ПКМ по закрытой клетке для установки «${con?.name}»${leftStr}`;
     } else if (g.cleared && g.status === 'playing') {
       $('status-hint').textContent = '😎 Цель выполнена! Нажмите «ПРОДОЛЖИТЬ» для перехода к карте маршрута или набивайте Overcharge';
+    } else if (g.daredevilActive) {
+      $('status-hint').textContent = '🤩 РЕЖИМ «ОТВАГА И СЛАБОУМИЕ»! Клики наугад приносят ×10 ОЧКОВ! Клик рядом с цифрой сбросит режим.';
+    } else if (g.blindClicks >= 2) {
+      $('status-hint').textContent = `🎲 Клики наугад: ${g.blindClicks}/5 (до режима «Отвага и слабоумие» осталось ${5 - g.blindClicks})`;
     } else {
-      $('status-hint').textContent = 'ЛКМ — скан · ПКМ — флаг · 🎰 Соберите 3 флага-слота для джекпота!';
+      $('status-hint').textContent = 'ЛКМ — скан · ПКМ — флаг · 🎰 3 флага-слота = джекпот · 5 кликов наугад = 🤩 ×10!';
     }
 
     this.renderOverlay();
@@ -256,6 +277,7 @@ export class Hud {
         const el = document.createElement('div');
         let cls = 'bonus-item';
         if (text.includes('СБИТА')) cls += ' broken';
+        else if (text.includes('ОТВАГА')) cls += ' daredevil';
         else if (text.includes('⚡')) cls += ' super';
         else if (text.includes('🔥')) cls += ' hot';
         else if (text.includes('В РЯД')) cls += ' streak';

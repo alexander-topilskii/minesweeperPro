@@ -480,6 +480,13 @@ function wire(g: Game) {
         // Trigger vivid frameless bonus animations in sidebar next to bonus badges
         if (t.callouts && t.callouts.length > 0) {
           hud.showBonus(t.callouts, t.exploded);
+          const daredevilCallout = t.callouts.find((c) => c.includes('ОТВАГА И СЛАБОУМИЕ'));
+          if (daredevilCallout) {
+            sfx.jackpotFanfare();
+            if (daredevilCallout.includes('ВКЛЮЧЕНО')) {
+              fx.banner(boardEl, '🤩 «ОТВАГА И СЛАБОУМИЕ»!\n×10 МНОЖИТЕЛЬ АКТИВЕН', 'rainbow');
+            }
+          }
         }
         if (t.comboStreak >= 2) {
           sfx.combo(t.comboStreak);
