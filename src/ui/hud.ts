@@ -187,6 +187,27 @@ export class Hud {
     $('turn').innerHTML = this.turnHtml(g.lastTurn);
     $('hull').innerHTML = Array.from({ length: g.maxHull }, (_, i) => `<i class="${i < g.hull ? 'on' : ''}"></i>`).join('');
     $('combo').textContent = `${g.combo}  (+${fmt(g.combo * CONFIG.comboMultStep)})`;
+
+    const baseMult = 1 + g.combo * CONFIG.comboMultStep + g.roundMult;
+    let specialMult = 1;
+    const specialTags: string[] = [];
+    if (g.daredevilActive) {
+      specialMult *= 10;
+      specialTags.push('🤩 ×10');
+    }
+    if (g.speedDemonActive) {
+      specialMult *= 3;
+      specialTags.push('🚀 ×3');
+    }
+    const multStatusEl = $('mult-status');
+    if (multStatusEl) {
+      if (specialMult > 1) {
+        multStatusEl.innerHTML = `<span class="mult-boost">×${(baseMult * specialMult).toFixed(1)}</span> <span class="mult-tag">(${specialTags.join(' · ')})</span>`;
+      } else {
+        multStatusEl.textContent = `×${baseMult.toFixed(2)}`;
+      }
+    }
+
     $('bits').textContent = `$${g.bits}`;
 
     // Consumables list in side panel
@@ -282,9 +303,9 @@ export class Hud {
     const t = `${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
     const row = document.createElement('div');
     row.className = `log-row ${cls}`;
-    row.innerHTML = `<span class="log-t">${t}</span>${html}`;
+    row.innerHTML = `<span class="log-t">[${t}]</span><span class="log-msg">${html}</span>`;
     box.prepend(row);
-    while (box.children.length > 120) box.lastElementChild?.remove();
+    while (box.children.length > 80) box.lastElementChild?.remove();
   }
 
   /** Display juicy frameless glowing bonus text floating in the sidebar bonus feed */
@@ -309,7 +330,39 @@ export class Hud {
     }
 
     callouts.forEach((text, i) => {
-      this.log(text, Hud.calloutClass(text));
+      // Filter out step progress counters (e.g. "НАУГАД: 2/5", "СКОРОСТЬ: 1/3") from the permanent log
+      if (!text.includes('НАУГАД:') && !text.includes('СКОРОСТЬ:')) {
+        let logMsg = text;
+        let logCls = Hud.calloutClass(text);
+
+        if (text.includes('ОТВАГА И СЛАБОУМИЕ')) {
+          logMsg = '🤩 <b>Клики наугад:</b> бонус к очкам ×10';
+          logCls = 'daredevil';
+        } else if (text.includes('НЕ УСЛЕДИТЬ')) {
+          logMsg = '🚀 <b>Быстрые клики (&lt;1с):</b> бонус к очкам ×3';
+          logCls = 'speed';
+        } else if (text.includes('РАСЧЁТЛИВЫЙ КЛИК')) {
+          logMsg = '😌 <b>Расчётливый ход:</b> бонус наугад завершён';
+          logCls = 'neutral';
+        } else if (text.includes('ЗАМЕДЛЕНИЕ')) {
+          logMsg = '🐢 <b>Замедление (&ge;1с):</b> скоростной бонус завершён';
+          logCls = 'neutral';
+        } else if (text.includes('КАСКАД')) {
+          logMsg = `🌊 <b>${text}</b>`;
+          logCls = 'cascade';
+        } else if (text.includes('В РЯД')) {
+          logMsg = `🔥 <b>${text}</b>`;
+          logCls = 'streak';
+        } else if (text.includes('ПОДРЫВ')) {
+          // Explode is logged once with full details from main.ts
+          logMsg = '';
+        }
+
+        if (logMsg) {
+          this.log(logMsg, logCls);
+        }
+      }
+
       setTimeout(() => {
         while (feed.children.length >= 3) {
           feed.firstElementChild?.remove();

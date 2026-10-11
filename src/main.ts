@@ -89,6 +89,7 @@ const saveProgress = () => {
 
 const restart = () => {
   localStorage.removeItem(SAVE_KEY);
+  fx.clear();
   game = new Game(STARTER.map(getModule));
   wire(game);
   hud.setGame(game);
@@ -99,6 +100,7 @@ const restart = () => {
   shopView.render();
   mapView.render();
   sfx.click();
+  hud.log('── Начат новый забег ──', 'sep');
   fx.banner(boardEl, 'НОВЫЙ ЗАБЕГ\nС НАЧАЛА', 'rainbow');
 };
 
@@ -499,10 +501,10 @@ function wire(g: Game) {
           }
         }
         if (t.score > 0) {
-          const xm = t.xMult !== 1 ? ` × ${t.xMult}` : '';
-          hud.log(`<b>+${t.score}</b> · ${t.data} × ${t.mult.toFixed(2)}${xm} · ${t.cells} кл.`, 'score');
+          const multDetails = t.xMult !== 1 ? `${t.mult.toFixed(2)} × ${t.xMult}` : `${t.mult.toFixed(2)}`;
+          hud.log(`<b>+${t.score}</b> <span class="log-detail">(${t.data} данн. × ${multDetails} · ${t.cells} кл.)</span>`, 'score');
         } else if (t.exploded) {
-          hud.log(`💥 Подрыв · осталось HP: ${g.hull}`, 'broken');
+          hud.log(`💥 <b>Подрыв на мине:</b> -1 HP · комбо сброшено (осталось HP: ${g.hull})`, 'broken');
         }
         if (t.comboStreak >= 2) {
           sfx.combo(t.comboStreak);
@@ -517,14 +519,16 @@ function wire(g: Game) {
         fx.banner(boardEl, 'ЦЕЛЬ ВЫПОЛНЕНА!\nСЕКТОР ПРОЙДЕН', 'rainbow');
         sfx.jackpotFanfare();
         hud.showBonus(['🎉 ЦЕЛЬ ВЫПОЛНЕНА!', '🏁 ПРОДОЛЖИТЬ ИЛИ НАБИВАТЬ OVERCHARGE!'], false);
+        hud.log(`🏆 <b>Сектор пройден!</b> Цель (${g.target}) выполнена`, 'money');
         break;
       case 'overchargeUp':
         fx.banner(boardEl, `⚡ OVERCHARGE УР. ${e.level}!\n+$1 БОНУС`, 'bits');
         sfx.cascade(8);
         hud.showBonus([`⚡ OVERCHARGE УР. ${e.level}!`, `+$1 БОНУС ДЛЯ МАГАЗИНА`], false);
+        hud.log(`⚡ <b>Overcharge Ур. ${e.level}:</b> +$1 к награде`, 'super');
         break;
       case 'roundEnd':
-        hud.log(`🏁 Сектор закрыт: ${e.summary.score}/${e.summary.target} · награда +$${e.summary.bits}`, 'money');
+        hud.log(`🏁 <b>Сектор закрыт:</b> ${e.summary.score}/${e.summary.target} · Награда +$${e.summary.bits}`, 'money');
         fx.banner(boardEl, `+$${e.summary.bits}<small>${e.summary.score} / ${e.summary.target}</small>`, 'bits');
         setTimeout(() => {
           if (g === game) {

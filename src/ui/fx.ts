@@ -83,8 +83,13 @@ export class Fx {
     el.addEventListener('animationend', () => el.remove());
   }
 
+  /** Clear all active floating fx elements */
+  clear(): void {
+    this.layer.innerHTML = '';
+  }
+
   /** Large centred banner over an element. */
-  banner(over: HTMLElement, html: string, cls = ''): void {
+  banner(over: HTMLElement, html: string, cls = '', durationMs = 1000): void {
     const r = over.getBoundingClientRect();
     const el = document.createElement('div');
     el.className = `float banner ${cls}`;
@@ -92,6 +97,18 @@ export class Fx {
     el.style.left = `${(r.left + r.width / 2).toFixed(1)}px`;
     el.style.top = `${(r.top + r.height / 2).toFixed(1)}px`;
     this.layer.appendChild(el);
-    el.addEventListener('animationend', () => el.remove());
+
+    const timer = setTimeout(() => {
+      el.remove();
+    }, durationMs);
+
+    el.addEventListener(
+      'animationend',
+      () => {
+        clearTimeout(timer);
+        el.remove();
+      },
+      { once: true },
+    );
   }
 }
