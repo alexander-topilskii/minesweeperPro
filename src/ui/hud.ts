@@ -274,11 +274,9 @@ export class Hud {
   log(html: string, cls = ''): void {
     const box = document.getElementById('event-log');
     if (!box) return;
-    const d = new Date();
-    const t = `${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
     const row = document.createElement('div');
     row.className = `log-row ${cls}`;
-    row.innerHTML = `<span class="log-t">[${t}]</span><span class="log-msg">${html}</span>`;
+    row.innerHTML = `<span class="log-msg">${html}</span>`;
     box.prepend(row);
     while (box.children.length > 80) box.lastElementChild?.remove();
   }
