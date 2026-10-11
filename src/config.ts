@@ -20,11 +20,11 @@ export const CONFIG = {
   /** Cashout Lever base data per flagged mine. */
   cashoutBaseDataPerFlag: 40,
 
-  baseTarget: 190,
+  baseTarget: 450,
   /** Target multiplier per sector. */
-  sectorGrowth: 1.6,
+  sectorGrowth: 1.5,
   /** Target multiplier for stage within sector: standard / deep / boss. */
-  stageTiers: [1, 1.4, 1.8],
+  stageTiers: [1, 1.35, 1.7],
   sectors: 8,
 
   bitsPerWin: 3,
