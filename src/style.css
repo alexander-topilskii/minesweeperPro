@@ -336,8 +336,8 @@ body.cleared .target i {
 }
 
 .slot-reel-strip.spinning {
-  animation: slot-reel-roll 0.22s linear infinite;
-  filter: blur(1px);
+  animation: slot-reel-roll 0.58s linear infinite;
+  filter: blur(0.35px);
 }
 
 .slot-reel-item {
@@ -1063,17 +1063,42 @@ legend { padding: 0 4px; }
 }
 
 .float.banner {
-  font-size: 44px; letter-spacing: 3px;
-  animation: rise-big 1.8s cubic-bezier(.15, .8, .3, 1) forwards;
+  font-size: 38px;
+  letter-spacing: 2px;
+  animation: rise-big 3.0s cubic-bezier(.15, .8, .3, 1) forwards;
 }
 .float.rainbow, .float.bits {
   background: linear-gradient(90deg, #ff004c, #ff8a00, #ffe600, #00e676, #00b0ff, #a259ff, #ff004c);
   background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
   -webkit-text-stroke: 0; filter: drop-shadow(2px 2px 0 #000) drop-shadow(0 0 12px rgba(255, 255, 255, 0.5));
-  animation: rise-big 1.8s cubic-bezier(.15, .8, .3, 1) forwards, flow 1.2s linear infinite;
+  animation: rise-big 3.0s cubic-bezier(.15, .8, .3, 1) forwards, flow 1.2s linear infinite;
 }
-.float.bits { font-size: 36px; }
+.float.bits { font-size: 34px; }
 .float.bits small { -webkit-text-fill-color: #fff; text-shadow: 1px 1px 0 #000; }
+
+.float.banner.slot-result {
+  background: rgba(12, 6, 18, 0.95);
+  border: 3px solid #ffd700;
+  border-radius: 8px;
+  padding: 12px 24px;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.95), 0 0 22px rgba(255, 215, 0, 0.6);
+  font-size: 28px;
+  line-height: 1.35;
+  color: #fff;
+  white-space: pre-line;
+}
+.float.banner.slot-result.bust {
+  border-color: #ff0055;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.95), 0 0 25px rgba(255, 0, 85, 0.65);
+  color: #ff3b69;
+}
+.float.banner.slot-result small {
+  display: block;
+  font-size: 15px;
+  margin-top: 6px;
+  color: #f0f0f0;
+  letter-spacing: 0.5px;
+}
 
 /* Buttery-smooth physics deceleration away from cursor */
 @keyframes float-drift {
@@ -1130,10 +1155,11 @@ legend { padding: 0 4px; }
 }
 
 @keyframes rise-big {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
-  15% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
-  30% { transform: translate(-50%, -55%) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -160%) scale(1.05); filter: blur(4px); }
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  10% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+  18% { transform: translate(-50%, -50%) scale(1.0); }
+  78% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+  100% { opacity: 0; transform: translate(-50%, -85%) scale(0.96); filter: blur(3px); }
 }
 
 /* ===== Dialog (only for run end) ===== */

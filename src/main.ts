@@ -209,12 +209,14 @@ function mountSlotReels(slots: Cell[]): { controllers: SlotReelController[]; lay
   return { controllers, layer };
 }
 
-function stopSlotReel(controller: SlotReelController): Promise<boolean> {
+function stopSlotReel(controller: SlotReelController, reelIndex: number): Promise<boolean> {
   return new Promise((resolve) => {
     const { cabinet, strip, cell, itemH } = controller;
 
-    // Build the landing sequence: passing spinning symbols followed by the ACTUAL cell content
+    // Build the landing sequence: 6 passing spinning symbols followed by the ACTUAL cell content
     const passing = [
+      REEL_SYMBOLS[Math.floor(Math.random() * REEL_SYMBOLS.length)],
+      REEL_SYMBOLS[Math.floor(Math.random() * REEL_SYMBOLS.length)],
       REEL_SYMBOLS[Math.floor(Math.random() * REEL_SYMBOLS.length)],
       REEL_SYMBOLS[Math.floor(Math.random() * REEL_SYMBOLS.length)],
       REEL_SYMBOLS[Math.floor(Math.random() * REEL_SYMBOLS.length)],
@@ -248,24 +250,34 @@ function stopSlotReel(controller: SlotReelController): Promise<boolean> {
     }
     strip.appendChild(targetItem);
 
-    // Stop continuous loop and trigger elastic mechanical snap to the target symbol
+    // Stop continuous loop and trigger smooth, authentic mechanical deceleration
     strip.classList.remove('spinning');
     strip.style.transform = 'translateY(0px)';
     void strip.offsetHeight; // force reflow
 
     const targetOffset = passing.length * itemH;
-    strip.style.transition = 'transform 0.42s cubic-bezier(0.12, 0.88, 0.35, 1.25)';
+    // Decelerates over 850ms with elastic snap on lock
+    strip.style.transition = 'transform 0.85s cubic-bezier(0.16, 0.95, 0.28, 1.15)';
     strip.style.transform = `translateY(-${targetOffset}px)`;
 
     setTimeout(() => {
+      sfx.slotReelStop(reelIndex);
+      view.kick(0.2);
+
       if (cell.mine) {
         cabinet.classList.add('confirmed');
+        sfx.flagConfirmed(reelIndex);
+        const p = cellScreen(cell.x, cell.y);
+        fx.burst(p.x, p.y, `<span class="score-main" style="color:#00ff88;font-size:20px;">⚡ МИНА [7]!</span>`, 'score');
         resolve(true);
       } else {
         cabinet.classList.add('bust');
+        sfx.buzzer();
+        const p = cellScreen(cell.x, cell.y);
+        fx.burst(p.x, p.y, `<span class="hurt-main" style="font-size:18px;">⚠️ МИМО!</span>`, 'hurt');
         resolve(false);
       }
-    }, 430);
+    }, 850);
   });
 }
 
@@ -304,77 +316,77 @@ const runSlotJackpotRoll = async () => {
     });
   }, 90);
 
-  // Spin for 1.2s before the first reel begins stopping
-  await new Promise((r) => setTimeout(r, 1200));
+  // Spin for 1.4s before the first reel begins decelerating
+  await new Promise((r) => setTimeout(r, 1400));
 
-  // Phase 2: Sequential deceleration and snap of the 3 reels (Reel 1 → Reel 2 → Reel 3)
-  let failedCell: Cell | null = null;
+  // Phase 2: Sequential deceleration and reveal of ALL 3 reels (Reel 1 → Reel 2 → Reel 3)
+  // Even if a reel fails, all 3 reels ALWAYS complete and reveal what is behind them!
   for (let i = 0; i < 3; i++) {
     const controller = controllers[i];
-    const c = controller.cell;
-
-    sfx.slotReelStop(i);
-    const isMine = await stopSlotReel(controller);
-    view.kick(0.2);
-
-    if (isMine) {
-      // Confirmed mine under reel!
-      sfx.flagConfirmed(i);
-      const p = cellScreen(c.x, c.y);
-      fx.burst(p.x, p.y, `<span class="score-main" style="color:#00ff88;font-size:20px;">⚡ МИНА [7]!</span>`, 'score');
-      // Build tension before next reel stops
-      await new Promise((r) => setTimeout(r, 450));
-    } else {
-      // Safe cell under slot machine -> BUST!
-      failedCell = c;
-      break;
-    }
+    await stopSlotReel(controller, i);
+    // Pause 600ms between reel stops so the player can see each outcome clearly
+    await new Promise((r) => setTimeout(r, 600));
   }
 
   clearInterval(chaseInterval);
   lamps.forEach((l) => l.classList.add('off'));
 
-  if (failedCell) {
-    // BUST / EXPLOSION
-    sfx.buzzer();
-    view.kick(0.65);
-    if (lightsContainer) lightsContainer.className = 'board-lights bust';
-    const p = cellScreen(failedCell.x, failedCell.y);
-    fx.burst(p.x, p.y, `<span class="hurt-main">💥 ВЗРЫВ! -1 HP</span><small style="color:#ff6666;font-weight:bold;">СЕРИЯ СБИТА</small>`, 'hurt');
-    game.resolveSlotBust(failedCell);
-    view.sync();
-    view.locked = false;
-    isSlotRolling = false;
-    game.isSlotRolling = false;
-    hud.showBonus([`💥 ОСЕЧКА СЛОТА! -1 HP`, `СЕРИЯ СБИТА`], true);
-    hud.render();
-    setTimeout(() => {
-      reelsLayer.remove();
-      if (lightsContainer) lightsContainer.className = 'board-lights';
-    }, 1400);
-  } else {
+  // Phase 3: Evaluate result of all 3 reels
+  const result = game.resolveSlotRoll(slots);
+
+  if (result.jackpot) {
     // 3 MINES CONFIRMED: 777 JACKPOT!
     controllers.forEach((ctrl) => ctrl.cabinet.classList.add('jackpot'));
     sfx.jackpotFanfare();
     view.kick(0.45);
     if (lightsContainer) lightsContainer.className = 'board-lights jackpot';
 
-    const result = game.resolveSlotJackpot(slots);
-    view.build(game.board);
-    view.locked = false;
-    isSlotRolling = false;
-
-    fx.banner(boardEl, `🎰 7-7-7 ДЖЕКПОТ!\n+${result.score} PTS · +$${result.bits}`, 'rainbow');
+    fx.banner(
+      boardEl,
+      `🎰 7-7-7 ДЖЕКПОТ!\n+$${result.bits} · +${result.score} PTS`,
+      'rainbow slot-result',
+    );
     hud.showBonus([
       `🎰 7-7-7 ДЖЕКПОТ! (+${result.score} PTS)`,
       `💎 +$${result.bits} ЗА 3 ОБЕЗВРЕЖЕННЫХ МИНЫ!`,
     ], false);
     hud.render();
+
+    // Keep on screen for 3.4 seconds so the player can fully enjoy the win & read the stats
     setTimeout(() => {
       reelsLayer.remove();
+      view.build(game.board);
+      view.locked = false;
+      isSlotRolling = false;
       game.isSlotRolling = false;
       if (lightsContainer) lightsContainer.className = 'board-lights';
-    }, 2200);
+    }, 3400);
+  } else {
+    // BUST: Not all 3 were mines
+    sfx.boom();
+    view.kick(0.65);
+    if (lightsContainer) lightsContainer.className = 'board-lights bust';
+
+    const hitText = result.minesHit > 0
+      ? `💥 СБОЙ СЛОТА: ${result.minesHit} ИЗ 3 МИН\n-1 HP · ${result.minesHit === 1 ? '1 МИНА' : '2 МИНЫ'} ПОМЕЧЕНЫ ФЛАГОМ`
+      : `💥 СБОЙ СЛОТА: 0 ИЗ 3 МИН\n-1 HP · СЕРИЯ СБИТА`;
+
+    fx.banner(boardEl, hitText, 'hurt slot-result bust');
+    hud.showBonus([
+      result.minesHit > 0 ? `⚠️ УГАДАНО ${result.minesHit} ИЗ 3 МИН` : `💥 0 ИЗ 3 МИН`,
+      `💥 -1 HP · СЕРИЯ СБИТА`,
+    ], true);
+    hud.render();
+
+    // Keep on screen for 3.2 seconds so the text and final reel positions are clearly understood
+    setTimeout(() => {
+      reelsLayer.remove();
+      view.sync();
+      view.locked = false;
+      isSlotRolling = false;
+      game.isSlotRolling = false;
+      if (lightsContainer) lightsContainer.className = 'board-lights';
+    }, 3200);
   }
 };
 

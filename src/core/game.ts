@@ -389,6 +389,74 @@ export class Game {
     this.emit({ type: 'change' });
   }
 
+  /**
+   * Resolves the result of the 3-slot roll for all 3 reels:
+   * - If all 3 are mines -> 777 Jackpot! (+pts, +$, defuses all 3, cascade)
+   * - If not all 3 are mines -> Bust:
+   *   - True mines among the 3 are safely kept as confirmed flags (m.flagged = true, m.slotFlag = false)
+   *   - Safe cells among the 3 are revealed as what they really are (c.revealed = true, cascading if 0)
+   *   - Penalty: -1 HP, clicks refunded, combo reset to 0
+   */
+  resolveSlotRoll(slots: Cell[]): {
+    jackpot: boolean;
+    minesHit: number;
+    score: number;
+    bits: number;
+  } {
+    const mineCells = slots.filter((c) => c.mine);
+    const safeCells = slots.filter((c) => !c.mine);
+
+    if (mineCells.length === 3) {
+      const res = this.resolveSlotJackpot(slots);
+      return {
+        jackpot: true,
+        minesHit: 3,
+        score: res.score,
+        bits: res.bits,
+      };
+    }
+
+    // BUST
+    // 1) Mark correct mine guesses as confirmed flags
+    for (const m of mineCells) {
+      m.slotFlag = false;
+      m.flagged = true;
+    }
+
+    // 2) Reveal safe cells and flood if adjacent == 0
+    for (const s of safeCells) {
+      s.slotFlag = false;
+      s.flagged = false;
+      s.revealed = true;
+      if (s.adjacent === 0) {
+        const layers = this.board.flood(s);
+        for (const layer of layers) {
+          for (const c of layer) c.revealed = true;
+        }
+      }
+    }
+
+    this.hull--;
+    this.clicks++; // Click compensation
+    this.combo = 0;
+    this.roundMult = 0;
+    this.isCashoutRolling = false;
+
+    if (this.hull <= 0) {
+      this.lossReason = 'hull';
+      this.status = 'lost';
+    }
+
+    this.emit({ type: 'change' });
+
+    return {
+      jackpot: false,
+      minesHit: mineCells.length,
+      score: 0,
+      bits: 0,
+    };
+  }
+
   /** Resolves 3-slot jackpot win: defuses all 3 mines, awards jackpot score, combo, bits */
   resolveSlotJackpot(slots: Cell[]): { score: number; bits: number } {
     const jackpotScore = Math.round(this.target * 1.5);
