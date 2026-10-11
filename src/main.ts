@@ -487,6 +487,15 @@ function wire(g: Game) {
               fx.banner(boardEl, '🤩 «ОТВАГА И СЛАБОУМИЕ»!\n×10 МНОЖИТЕЛЬ АКТИВЕН', 'rainbow');
             }
           }
+          const speedCallout = t.callouts.find((c) => c.includes('НЕ УСЛЕДИТЬ'));
+          if (speedCallout) {
+            if (speedCallout.includes('ВКЛЮЧЕНО')) {
+              sfx.cascade(8);
+              fx.banner(boardEl, '🚀 «НЕ УСЛЕДИТЬ»!\n×3 СКОРОСТНОЙ БОНУС!', 'rainbow');
+            } else {
+              sfx.cascade(4);
+            }
+          }
         }
         if (t.comboStreak >= 2) {
           sfx.combo(t.comboStreak);

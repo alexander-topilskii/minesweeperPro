@@ -132,12 +132,18 @@ body.pressing .smiley[data-state='normal']::after { content: '😮'; }
 .smiley[data-state='cool']::after { content: '😎'; }
 .smiley[data-state='dead']::after { content: '😵'; }
 .smiley[data-state='daredevil']::after { content: '🤩'; }
+.smiley[data-state='speed']::after { content: '🚀'; }
 .smiley[data-state='cool'] { animation: pulse 1.2s ease-in-out infinite; }
 .smiley[data-state='daredevil'] { animation: daredevil-bounce 0.75s ease-in-out infinite alternate; }
+.smiley[data-state='speed'] { animation: rocket-thrust 0.22s ease-in-out infinite alternate; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.7), 0 0 18px rgba(255, 140, 0, 0.8); } }
 @keyframes daredevil-bounce {
   0% { transform: scale(1) rotate(-4deg); box-shadow: 0 0 0 2px #ff0055, 0 0 14px rgba(255, 0, 85, 0.8); }
   100% { transform: scale(1.12) rotate(4deg); box-shadow: 0 0 0 3px #ffe600, 0 0 22px rgba(255, 230, 0, 0.9); }
+}
+@keyframes rocket-thrust {
+  0% { transform: translateY(1px) scale(1.05) rotate(-3deg); box-shadow: 0 0 0 2px #ff4500, 0 0 12px rgba(255, 69, 0, 0.85); }
+  100% { transform: translateY(-2px) scale(1.15) rotate(3deg); box-shadow: 0 0 0 3px #ffea00, 0 0 20px rgba(255, 234, 0, 0.95); }
 }
 
 .target-container {
@@ -1377,6 +1383,14 @@ legend { padding: 0 4px; }
   font-weight: bold;
   letter-spacing: 0.5px;
   text-shadow: 0 0 10px rgba(255, 0, 85, 1), 0 0 22px rgba(255, 230, 0, 0.95), 1.5px 1.5px 0 #000;
+}
+
+/* Speed Demon "Не уследить": blazing rocket orange & electric yellow */
+.bonus-item.speed {
+  color: #ff6600;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  text-shadow: 0 0 10px rgba(255, 68, 0, 1), 0 0 22px rgba(255, 220, 0, 0.95), 1.5px 1.5px 0 #000;
 }
 
 @keyframes bonus-item-float {

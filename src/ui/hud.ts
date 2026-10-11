@@ -133,6 +133,12 @@ export class Hud {
     if (g.status === 'lost') {
       smiley.dataset.state = 'dead';
       smiley.title = 'Новый забег';
+    } else if (g.speedDemonActive && g.daredevilActive) {
+      smiley.dataset.state = 'speed';
+      smiley.title = '🚀🤩 КОМБО «НЕ УСЛЕДИТЬ» (×3) + «ОТВАГА И СЛАБОУМИЕ» (×10) = ×30 ОЧКОВ!';
+    } else if (g.speedDemonActive) {
+      smiley.dataset.state = 'speed';
+      smiley.title = '🚀 РЕЖИМ «НЕ УСЛЕДИТЬ»! ×3 К ОЧКАМ ЗА СКОРОСТЬ! Не замедляйтесь!';
     } else if (g.daredevilActive) {
       smiley.dataset.state = 'daredevil';
       smiley.title = '🤩 РЕЖИМ «ОТВАГА И СЛАБОУМИЕ» АКТИВЕН! ×10 ОЧКОВ ЗА КЛИК НАУГАД!';
@@ -222,12 +228,18 @@ export class Hud {
       $('status-hint').textContent = `🎯 [РЕЖИМ ПРИЦЕЛА]: Кликните ЛКМ/ПКМ по закрытой клетке для установки «${con?.name}»${leftStr}`;
     } else if (g.cleared && g.status === 'playing') {
       $('status-hint').textContent = '😎 Цель выполнена! Нажмите «ПРОДОЛЖИТЬ» для перехода к карте маршрута или набивайте Overcharge';
+    } else if (g.speedDemonActive && g.daredevilActive) {
+      $('status-hint').textContent = '🚀🤩 УЛЬТРА-КОМБО! «НЕ УСЛЕДИТЬ» (×3) + «ОТВАГА» (×10) = ×30 ОЧКОВ!';
+    } else if (g.speedDemonActive) {
+      $('status-hint').textContent = '🚀 РЕЖИМ «НЕ УСЛЕДИТЬ»! Клики быстрее 1 сек приносят ×3 ОЧКОВ! Не замедляйтесь!';
     } else if (g.daredevilActive) {
       $('status-hint').textContent = '🤩 РЕЖИМ «ОТВАГА И СЛАБОУМИЕ»! Клики наугад приносят ×10 ОЧКОВ! Клик рядом с цифрой сбросит режим.';
+    } else if (g.fastClicks >= 1) {
+      $('status-hint').textContent = `⚡ Скоростные клики: ${g.fastClicks}/3 (ещё ${3 - g.fastClicks} быстрее 1с до режима «Не уследить» ×3)`;
     } else if (g.blindClicks >= 2) {
       $('status-hint').textContent = `🎲 Клики наугад: ${g.blindClicks}/5 (до режима «Отвага и слабоумие» осталось ${5 - g.blindClicks})`;
     } else {
-      $('status-hint').textContent = 'ЛКМ — скан · ПКМ — флаг · 🎰 3 флага-слота = джекпот · 5 кликов наугад = 🤩 ×10!';
+      $('status-hint').textContent = 'ЛКМ — скан · ПКМ — флаг · 🚀 3 клика < 1с = ×3 · 🤩 5 наугад = ×10';
     }
 
     this.renderOverlay();
@@ -278,6 +290,7 @@ export class Hud {
         let cls = 'bonus-item';
         if (text.includes('СБИТА')) cls += ' broken';
         else if (text.includes('ОТВАГА')) cls += ' daredevil';
+        else if (text.includes('НЕ УСЛЕДИТЬ') || text.includes('СКОРОСТЬ')) cls += ' speed';
         else if (text.includes('⚡')) cls += ' super';
         else if (text.includes('🔥')) cls += ' hot';
         else if (text.includes('В РЯД')) cls += ' streak';

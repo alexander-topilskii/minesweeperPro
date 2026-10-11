@@ -72,6 +72,15 @@ export class Game {
   /** Active state of "Отвага и слабоумие" bonus mode */
   daredevilActive = false;
 
+  /** Fast click streak count (consecutive cell reveals with <1000ms gap) */
+  fastClicks = 0;
+  /** Active state of "Не уследить" speed demon bonus mode */
+  speedDemonActive = false;
+  /** Timestamp of the last cell reveal */
+  lastRevealTime = 0;
+  /** Inactivity timer to reset speed mode when player slows down */
+  private speedDemonTimer?: ReturnType<typeof setTimeout>;
+
   /** Slay the Spire style branching map */
   map!: MapData;
   currentMapNode?: MapNode;
@@ -165,6 +174,13 @@ export class Game {
     this.lossReason = undefined;
     this.blindClicks = 0;
     this.daredevilActive = false;
+    this.fastClicks = 0;
+    this.speedDemonActive = false;
+    this.lastRevealTime = 0;
+    if (this.speedDemonTimer) {
+      clearTimeout(this.speedDemonTimer);
+      this.speedDemonTimer = undefined;
+    }
     this.status = 'playing';
     this.runHook('onRoundStart', (h) => h(this));
     this.emit({ type: 'newBoard' });
@@ -423,6 +439,13 @@ export class Game {
       this.board.generate(safe);
     }
 
+    if (this.speedDemonTimer) {
+      clearTimeout(this.speedDemonTimer);
+      this.speedDemonTimer = undefined;
+    }
+    this.speedDemonActive = false;
+    this.fastClicks = 0;
+    this.lastRevealTime = 0;
     this.isCashoutRolling = true;
     this.emit({ type: 'change' });
     return flags;
@@ -657,9 +680,10 @@ export class Game {
     const ctx = this.beginTurn();
 
     if (cell.mine) {
-      // Подрыв: обнуление бонуса «Отвага и слабоумие»
+      // Подрыв: обнуление бонуса «Отвага и слабоумие» и «Не уследить»
       this.blindClicks = 0;
       this.daredevilActive = false;
+      this.checkSpeedStreak(ctx, true);
       this.hitMine(cell, ctx);
     } else {
       // Безопасный клик
@@ -683,6 +707,7 @@ export class Game {
         this.blindClicks = 0;
         this.daredevilActive = false;
       }
+      this.checkSpeedStreak(ctx, false);
       this.openSafe(cell, ctx);
     }
 
@@ -708,7 +733,57 @@ export class Game {
       if (t.mine) this.hitMine(t, ctx);
       else this.openSafe(t, ctx);
     }
+    this.checkSpeedStreak(ctx, ctx.exploded);
     this.endTurn(ctx, cell);
+  }
+
+  private checkSpeedStreak(ctx: TurnContext, isDetonation: boolean): void {
+    if (this.speedDemonTimer) {
+      clearTimeout(this.speedDemonTimer);
+      this.speedDemonTimer = undefined;
+    }
+
+    if (isDetonation) {
+      this.fastClicks = 0;
+      this.speedDemonActive = false;
+      this.lastRevealTime = 0;
+      return;
+    }
+
+    const now = performance.now();
+    const delta = this.lastRevealTime > 0 ? now - this.lastRevealTime : Infinity;
+    this.lastRevealTime = now;
+
+    if (delta < 1000) {
+      this.fastClicks++;
+      if (this.speedDemonActive) {
+        ctx.xMult *= 3;
+        ctx.callouts.unshift('🚀 «НЕ УСЛЕДИТЬ» ×3!');
+      } else if (this.fastClicks >= 3) {
+        this.speedDemonActive = true;
+        ctx.xMult *= 3;
+        ctx.callouts.unshift('🚀 «НЕ УСЛЕДИТЬ» ВКЛЮЧЕНО! ×3 БОНУС!');
+      } else {
+        ctx.callouts.push(`⚡ СКОРОСТЬ: ${this.fastClicks}/3`);
+      }
+    } else {
+      if (this.speedDemonActive) {
+        this.speedDemonActive = false;
+        ctx.callouts.push('🐢 ЗАМЕДЛЕНИЕ: РЕЖИМ СБРОШЕН');
+      }
+      this.fastClicks = 0;
+    }
+
+    if (this.speedDemonActive || this.fastClicks > 0) {
+      this.speedDemonTimer = setTimeout(() => {
+        if (this.status === 'playing' && (this.speedDemonActive || this.fastClicks > 0)) {
+          this.speedDemonActive = false;
+          this.fastClicks = 0;
+          this.lastRevealTime = 0;
+          this.emit({ type: 'change' });
+        }
+      }, 1020);
+    }
   }
 
   // ---------- Turn Pipeline ----------
