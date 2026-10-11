@@ -163,13 +163,20 @@ export class Game {
     this.currentEncounterType = encounterType;
     let mineCount = minesFor(stage);
     let targetScore = targetFor(stage);
+    let boardW: number = CONFIG.board.w;
+    let boardH: number = CONFIG.board.h;
+    let clicks: number = CONFIG.clicks;
 
     if (encounterType === 'elite') {
       mineCount += 3;
       targetScore = Math.round(targetScore * 1.25);
     } else if (encounterType === 'boss') {
-      mineCount += 5;
+      boardW = 14;
+      boardH = 14;
+      // 14x14 = 196 cells (~2x bigger than standard 10x10=100 cells)
+      mineCount = Math.round(mineCount * 1.7) + 3;
       targetScore = Math.round(targetScore * 1.5);
+      clicks = CONFIG.clicks + 8; // 33 clicks for the massive arena
     }
 
     this.halfFlagsDebuff = this.nextLevelHalfFlags;
@@ -182,10 +189,10 @@ export class Game {
     this.lastFlagToggleTime = 0;
     this.specialClear = undefined;
 
-    this.board = new Board(CONFIG.board.w, CONFIG.board.h, mineCount);
+    this.board = new Board(boardW, boardH, mineCount);
     this.score = 0;
     this.target = targetScore;
-    this.clicks = CONFIG.clicks;
+    this.clicks = clicks;
     this.hull = this.maxHull;
     this.combo = 0;
     this.roundMult = 0;

@@ -48,7 +48,11 @@ const mapView = new MapView(game, {
     view.build(game.board);
     hud.render();
     mapView.render();
-    fx.banner(headerEl, `${node.name.toUpperCase()}\nЦЕЛЬ: ${game.target}`, node.type === 'boss' ? 'rainbow' : 'bits');
+    const isBoss = node.type === 'boss';
+    const bannerText = isBoss
+      ? `👑 ${node.name.toUpperCase()}\nАРЕНА БОССА 14×14`
+      : `${node.name.toUpperCase()}\nЦЕЛЬ: ${game.target}`;
+    fx.banner(headerEl, bannerText, isBoss ? 'rainbow' : 'bits');
   },
   onOpenShop: () => {
     sfx.relay();

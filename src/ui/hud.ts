@@ -125,10 +125,11 @@ export class Hud {
       smiley.title = '';
     }
 
-    // Toggle shimmering daredevil frame on board
+    // Toggle shimmering daredevil and boss frame on board
     const boardFrame = document.querySelector('.board-frame');
     if (boardFrame) {
       boardFrame.classList.toggle('daredevil', g.daredevilActive);
+      boardFrame.classList.toggle('boss-encounter', g.currentEncounterType === 'boss');
     }
 
     const pct = Math.min(100, (g.score / g.target) * 100);
