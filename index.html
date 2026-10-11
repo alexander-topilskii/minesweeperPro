@@ -19,6 +19,16 @@
 
       <!-- MAIN GAME VIEW -->
       <div class="content" id="game-view">
+        <aside class="side side-left">
+          <fieldset class="cons">
+            <legend>Расходники (макс 3)</legend>
+            <div id="consumables" class="consumables-list"></div>
+          </fieldset>
+          <fieldset class="mods">
+            <legend>Модули (макс 5)</legend>
+            <div id="modules"></div>
+          </fieldset>
+        </aside>
         <section class="game-col">
           <div class="header bevel-in">
             <div class="lcd" id="lcd-clicks" title="Клики">020</div>
@@ -42,7 +52,7 @@
           </div>
         </section>
 
-        <aside class="side">
+        <aside class="side side-right">
           <fieldset class="engine-box">
             <legend>Score Engine</legend>
             <div id="turn" class="turn"></div>
@@ -56,13 +66,9 @@
               <span>Баланс</span><b id="bits"></b>
             </div>
           </fieldset>
-          <fieldset class="cons">
-            <legend>Расходники (макс 3)</legend>
-            <div id="consumables" class="consumables-list"></div>
-          </fieldset>
-          <fieldset class="mods">
-            <legend>Модули (макс 5)</legend>
-            <div id="modules"></div>
+          <fieldset class="log-box">
+            <legend>Журнал событий</legend>
+            <div id="event-log" class="event-log"></div>
           </fieldset>
         </aside>
       </div>

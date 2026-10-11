@@ -454,6 +454,7 @@ function wire(g: Game) {
     switch (e.type) {
       case 'newBoard':
         view.build(g.board);
+        hud.log(`── ${g.stageName} · цель ${g.target} ──`, 'sep');
         break;
       case 'turn': {
         const t = e.result;
@@ -497,6 +498,12 @@ function wire(g: Game) {
             }
           }
         }
+        if (t.score > 0) {
+          const xm = t.xMult !== 1 ? ` × ${t.xMult}` : '';
+          hud.log(`<b>+${t.score}</b> · ${t.data} × ${t.mult.toFixed(2)}${xm} · ${t.cells} кл.`, 'score');
+        } else if (t.exploded) {
+          hud.log(`💥 Подрыв · осталось HP: ${g.hull}`, 'broken');
+        }
         if (t.comboStreak >= 2) {
           sfx.combo(t.comboStreak);
         } else if (t.cells > 1) {
@@ -517,6 +524,7 @@ function wire(g: Game) {
         hud.showBonus([`⚡ OVERCHARGE УР. ${e.level}!`, `+$1 БОНУС ДЛЯ МАГАЗИНА`], false);
         break;
       case 'roundEnd':
+        hud.log(`🏁 Сектор закрыт: ${e.summary.score}/${e.summary.target} · награда +$${e.summary.bits}`, 'money');
         fx.banner(boardEl, `+$${e.summary.bits}<small>${e.summary.score} / ${e.summary.target}</small>`, 'bits');
         setTimeout(() => {
           if (g === game) {

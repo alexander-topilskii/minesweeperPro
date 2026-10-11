@@ -120,6 +120,9 @@ export class Hud {
     // View toggle between game, shop, and map
     const isShop = g.status === 'shop';
     const isMap = g.status === 'map';
+    if ((isShop || isMap) && !$('game-view').hidden) {
+      $('fx').innerHTML = '';
+    }
     $('game-view').hidden = isShop || isMap;
     $('shop-view').hidden = !isShop;
     $('map-view').hidden = !isMap;
@@ -259,6 +262,31 @@ export class Hud {
     </div>`;
   }
 
+  static calloutClass(text: string): string {
+    if (text.includes('СБИТА') || text.includes('ПОДРЫВ')) return 'broken';
+    if (text.includes('ОТВАГА')) return 'daredevil';
+    if (text.includes('НЕ УСЛЕДИТЬ') || text.includes('СКОРОСТЬ')) return 'speed';
+    if (text.includes('$')) return 'money';
+    if (text.includes('⚡')) return 'super';
+    if (text.includes('🔥')) return 'hot';
+    if (text.includes('В РЯД')) return 'streak';
+    if (text.includes('КАСКАД')) return 'cascade';
+    return 'module';
+  }
+
+  /** Append a row to the persistent event journal (newest on top). */
+  log(html: string, cls = ''): void {
+    const box = document.getElementById('event-log');
+    if (!box) return;
+    const d = new Date();
+    const t = `${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+    const row = document.createElement('div');
+    row.className = `log-row ${cls}`;
+    row.innerHTML = `<span class="log-t">${t}</span>${html}`;
+    box.prepend(row);
+    while (box.children.length > 120) box.lastElementChild?.remove();
+  }
+
   /** Display juicy frameless glowing bonus text floating in the sidebar bonus feed */
   showBonus(callouts: string[], isExploded: boolean): void {
     const feed = $('bonus-feed');
@@ -281,6 +309,7 @@ export class Hud {
     }
 
     callouts.forEach((text, i) => {
+      this.log(text, Hud.calloutClass(text));
       setTimeout(() => {
         while (feed.children.length >= 3) {
           feed.firstElementChild?.remove();
