@@ -1,5 +1,5 @@
 import type { Game, TurnResult } from '../core/game';
-import { CONFIG } from '../config';
+import { CONFIG, calcBitsReward } from '../config';
 
 const $ = (id: string) => document.getElementById(id)!;
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -25,6 +25,7 @@ export class Hud {
       smiley(): void;
       advance(): void;
       restart(): void;
+      onFairyRevive(): void;
       onUseConsumable(idx: number): void;
     },
   ) {
@@ -32,12 +33,19 @@ export class Hud {
     $('overlay').addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
       if (target.closest('[data-action="restart"]')) this.actions.restart();
+      if (target.closest('[data-action="fairy-revive"]')) this.actions.onFairyRevive();
       if (target.closest('[data-action="advance"]')) {
         this.clearedPopupOpen = false;
         this.actions.advance();
       }
       if (target.closest('[data-action="dismiss-cleared"]')) {
         this.dismissClearedPopup();
+      }
+    });
+
+    $('dock-fairy')?.addEventListener('click', () => {
+      if (this.game.status === 'lost' && this.game.fairies > 0) {
+        this.actions.onFairyRevive();
       }
     });
 
@@ -137,7 +145,7 @@ export class Hud {
 
     const overchargeLvl = Math.max(0, Math.floor((g.score - g.target) / (g.target * CONFIG.overchargeBitStep)));
     const nextOverchargePct = 100 + (overchargeLvl + 1) * Math.round(CONFIG.overchargeBitStep * 100);
-    const bitsReward = CONFIG.bitsPerWin + g.clicks * CONFIG.bitsPerClickLeft + overchargeLvl;
+    const bitsReward = calcBitsReward(g.clicks, overchargeLvl, g.currentEncounterType);
 
     if (g.cleared) {
       const currentPct = Math.round((g.score / g.target) * 100);
@@ -172,6 +180,35 @@ export class Hud {
         flagsEl.title = 'Лимит по количеству мин на поле';
       }
     }
+    const fairyEl = $('fairy-status');
+    if (fairyEl) {
+      fairyEl.textContent = g.fairies > 0 ? `🧚 ${g.fairies}` : '0';
+      fairyEl.style.color = g.fairies > 0 ? '#00ffaa' : '';
+      fairyEl.title = g.fairies > 0
+        ? `Второе дыхание активно: при поражении сектор перезапустится (${g.fairies} шт.)`
+        : 'Начиная со 2-го сегмента можно найти фею в банке на поле или за победу над первым боссом';
+    }
+
+    // Top header effect slot: Fairy in a Bottle
+    const dockFairy = $('dock-fairy');
+    const dockFairyBadge = $('dock-fairy-badge');
+    if (dockFairy) {
+      if (g.fairies > 0) {
+        dockFairy.className = 'dock-slot bevel-out fairy-active';
+        dockFairy.title = `Фея в банке (${g.fairies} шт.): Второе дыхание активно. При поражении сектор перезапустится!`;
+        if (dockFairyBadge) {
+          dockFairyBadge.textContent = String(g.fairies);
+          dockFairyBadge.style.display = 'block';
+        }
+      } else {
+        dockFairy.className = 'dock-slot bevel-in empty';
+        dockFairy.title = 'Слот «Фея в банке» (пусто). Добывается на поле со 2-го сегмента или за победу над первым боссом!';
+        if (dockFairyBadge) {
+          dockFairyBadge.style.display = 'none';
+        }
+      }
+    }
+
     $('combo').textContent = `${g.combo}  (+${fmt(g.combo * CONFIG.comboMultStep)})`;
 
     const baseMult = 1 + g.combo * CONFIG.comboMultStep + g.roundMult;
@@ -257,8 +294,9 @@ export class Hud {
     if (text.includes('СБИТА') || text.includes('ПОДРЫВ')) return 'broken';
     if (text.includes('ОТВАГА')) return 'daredevil';
     if (text.includes('НЕ УСЛЕДИТЬ') || text.includes('СКОРОСТЬ')) return 'speed';
-    if (text.includes('$')) return 'money';
-    if (text.includes('⚡')) return 'super';
+    if (text.includes('СПИЧКУ') || text.includes('$')) return 'money';
+    if (text.includes('БАТАРЕЯ') || text.includes('КЛИК') || text.includes('⚡')) return 'super';
+    if (text.includes('ХОРД')) return 'module';
     if (text.includes('🔥')) return 'hot';
     if (text.includes('В РЯД')) return 'streak';
     if (text.includes('КАСКАД')) return 'cascade';
@@ -321,6 +359,15 @@ export class Hud {
         } else if (text.includes('В РЯД')) {
           logMsg = `🔥 <b>${text}</b>`;
           logCls = 'streak';
+        } else if (text.includes('ХОРД')) {
+          logMsg = `🧠 <b>${text}</b>`;
+          logCls = 'module';
+        } else if (text.includes('БАТАРЕЯ') || (text.includes('СЕРИЯ') && text.includes('КЛИК'))) {
+          logMsg = `🔋 <b>${text}</b>`;
+          logCls = 'super';
+        } else if (text.includes('СПИЧКУ')) {
+          logMsg = '🥢 <b>Вытянул длинную спичку:</b> угадал 50/50! +$3 Bits';
+          logCls = 'money';
         } else if (text.includes('ПОДРЫВ')) {
           // Explode is logged once with full details from main.ts
           logMsg = '';
@@ -339,6 +386,9 @@ export class Hud {
         const el = document.createElement('div');
         let cls = 'bonus-item';
         if (text.includes('СБИТА')) cls += ' broken';
+        else if (text.includes('СПИЧКУ')) cls += ' money';
+        else if (text.includes('БАТАРЕЯ') || text.includes('КЛИК')) cls += ' super';
+        else if (text.includes('ХОРД')) cls += ' module';
         else if (text.includes('ОТВАГА')) cls += ' daredevil';
         else if (text.includes('НЕ УСЛЕДИТЬ') || text.includes('СКОРОСТЬ')) cls += ' speed';
         else if (text.includes('⚡')) cls += ' super';
@@ -368,11 +418,40 @@ export class Hud {
         reasonText = 'Кончились клики';
         reasonSub = 'Закончились все доступные клики (осталось 0 кликов)';
       } else if (g.lossReason === 'hull') {
-        reasonText = 'Кончились жизни (HP)';
-        reasonSub = 'Подрыв на мине (0 HP)';
+        if (g.cleared) {
+          reasonText = 'Подрыв при Overcharge';
+          reasonSub = 'Жадность сгубила: подрыв на мине после выполнения секторной цели';
+        } else {
+          reasonText = 'Кончились жизни (HP)';
+          reasonSub = 'Подрыв на мине (0 HP)';
+        }
       } else if (g.lossReason === 'cashout') {
         reasonText = 'Авария детонатора';
         reasonSub = 'Ложный флаг вызвал детонацию (0 HP)';
+      }
+
+      if (g.fairies > 0) {
+        const act = g.map ? g.map.act : 1;
+        const sector = g.currentMapNode ? g.currentMapNode.floor + 1 : (g.stage % 8) + 1;
+        el.innerHTML = `<div class="window dialog fairy-dialog">
+          <div class="titlebar"><span class="title">Второе дыхание — Фея в банке</span><span class="tbtns"><b>🧚</b></span></div>
+          <div class="dialog-body">
+            <span class="dicon" style="font-size:36px;filter:drop-shadow(0 0 10px #00ffaa);">🧚‍♀️</span>
+            <div class="dialog-content">
+              <div class="win-title" style="color:#00ffaa;font-size:15px;">ФЕЯ В БАНКЕ СПАСЛА ВАС!</div>
+              <p style="margin:2px 0 6px;font-size:12px;">Поражение в секторе <b>${act}-${sector}/8 (${g.stageName})</b>.</p>
+              <div class="loss-reason-badge" style="color:#ff8888;">ПРИЧИНА ПОРАЖЕНИЯ:</div>
+              <div class="loss-reason-sub" style="color:#ccc;">${reasonText} (${reasonSub})</div>
+              <p style="margin:6px 0 2px;font-size:11px;color:#d4fcd4;line-height:1.3;">
+                Фея пожертвовала собой и обратила время вспять! <b>Забег не сброшен</b> — сектор начнется заново с полным HP. Фея сгорает (осталось: <b>${g.fairies - 1}</b>).
+              </p>
+            </div>
+          </div>
+          <div class="dialog-btns">
+            <button class="btn bevel-out fairy-revive-btn" data-action="fairy-revive">Перезапустить сектор (${g.fairies} 🧚) ↺</button>
+          </div>
+        </div>`;
+        return;
       }
 
       el.innerHTML = `<div class="window dialog">
@@ -410,7 +489,7 @@ export class Hud {
     if (g.cleared && this.clearedPopupOpen && g.status === 'playing') {
       el.hidden = false;
       const overchargeLvl = Math.max(0, Math.floor((g.score - g.target) / (g.target * CONFIG.overchargeBitStep)));
-      const bitsReward = CONFIG.bitsPerWin + g.clicks * CONFIG.bitsPerClickLeft + overchargeLvl;
+      const bitsReward = calcBitsReward(g.clicks, overchargeLvl, g.currentEncounterType);
 
       const titleIcon =
         g.specialClear === 'full'
@@ -433,7 +512,7 @@ export class Hud {
       el.innerHTML = `<div class="window dialog cleared-dialog">
         <div class="titlebar">
           <span class="title">Сектор зачищен — Задание выполнено!</span>
-          <span class="tbtns"><b data-action="dismiss-cleared" title="Закрыть окно">×</b></span>
+          ${g.clicks > 0 ? '<span class="tbtns"><b data-action="dismiss-cleared" title="Закрыть окно">×</b></span>' : ''}
         </div>
         <div class="dialog-body">
           <span class="dicon">${titleIcon}</span>
@@ -479,6 +558,11 @@ export class Hud {
               <div class="stat-row">
                 <span>Overcharge:</span>
                 <b class="highlight-overcharge">Ур. ${overchargeLvl} (+$${overchargeLvl})</b>
+              </div>` : ''}
+              ${g.currentEncounterType === 'boss' && g.map.act === 1 ? `
+              <div class="stat-row" style="background:#083824;color:#00ffaa;padding:3px 6px;border:1px solid #00ffaa;margin-top:2px;">
+                <span>Трофей Босса:</span>
+                <b>🧚 ФЕЯ В БАНКЕ (+1)</b>
               </div>` : ''}
             </div>
           </div>

@@ -103,19 +103,84 @@ export function generateActMap(act: number): MapData {
       typeAt.set(key(f, c), t);
     }
   }
-  // Guarantee at least one shop and one elite on the map
+  // Guarantee at least one shop on EVERY path from floor 1 to floor 6 before the boss,
+  // prioritizing early floors (2 and 3) so players can buy equipment early.
+  const allPaths: string[][] = [];
+  const findPaths = (current: string, currentPath: string[]) => {
+    const f = Number(current.split('_')[0]);
+    if (f === lastPathFloor) {
+      allPaths.push(currentPath);
+      return;
+    }
+    const nextKeys = edges.get(current) ?? new Set<string>();
+    for (const nxt of nextKeys) {
+      findPaths(nxt, [...currentPath, nxt]);
+    }
+  };
+  for (const c of occupied[1]) {
+    findPaths(key(1, c), [key(1, c)]);
+  }
+
+  // Iteratively cover paths without a shop
+  while (true) {
+    const pathsWithoutShop = allPaths.filter(
+      (p) => !p.some((nodeKey) => typeAt.get(nodeKey) === 'shop'),
+    );
+    if (pathsWithoutShop.length === 0) break;
+
+    // Count coverage and score candidate nodes
+    const candidateScores = new Map<string, number>();
+    for (const p of pathsWithoutShop) {
+      for (const nodeKey of p) {
+        const f = Number(nodeKey.split('_')[0]);
+        // Eligible floors for shop: 2..5 (favor 2 and 3)
+        if (f >= 2 && f <= 5) {
+          const currentCoverage = candidateScores.get(nodeKey) ?? 0;
+          candidateScores.set(nodeKey, currentCoverage + 1);
+        }
+      }
+    }
+
+    let bestNode: string | undefined;
+    let bestScore = -Infinity;
+
+    for (const [nodeKey, coverage] of candidateScores.entries()) {
+      const [f, c] = nodeKey.split('_').map(Number);
+      const parentIsShop = parentsOf(f, c).some((pc) => typeAt.get(key(f - 1, pc)) === 'shop');
+      const childIsShop = [...(edges.get(nodeKey) ?? [])].some((nxt) => typeAt.get(nxt) === 'shop');
+
+      // Scoring: coverage is base, bonus for earlier floors (2 > 3 > 4 > 5), penalty for consecutive shops
+      let score = coverage * 10;
+      if (f === 2) score += 6;
+      else if (f === 3) score += 4;
+      else if (f === 4) score += 2;
+
+      if (parentIsShop || childIsShop) score -= 15;
+      if (typeAt.get(nodeKey) === 'elite') score -= 5; // Avoid overwriting elites if possible
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestNode = nodeKey;
+      }
+    }
+
+    if (bestNode) {
+      typeAt.set(bestNode, 'shop');
+    } else {
+      break;
+    }
+  }
+
+  // Guarantee at least one elite on the map
   const midKeys = [...typeAt.keys()].filter((k) => {
     const f = Number(k.split('_')[0]);
-    return f >= 2 && f <= 5;
+    return f >= 3 && f <= 5;
   });
-  const ensure = (type: NodeType) => {
-    if ([...typeAt.values()].includes(type)) return;
+  if (![...typeAt.values()].includes('elite')) {
     const candidates = midKeys.filter((k) => typeAt.get(k) === 'battle');
     const pick = (candidates.length ? candidates : midKeys)[Math.floor(Math.random() * (candidates.length || midKeys.length))];
-    if (pick) typeAt.set(pick, type);
-  };
-  ensure('shop');
-  ensure('elite');
+    if (pick) typeAt.set(pick, 'elite');
+  }
 
   // ---- 3. Build nodes ----
   const nodes: MapNode[] = [];

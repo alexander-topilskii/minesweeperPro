@@ -10,6 +10,10 @@ export interface Cell {
   wrong?: boolean;
   /** True if tagged with a Slot Machine Flag consumable */
   slotFlag?: boolean;
+  /** True if cell contains a Fairy in a Bottle */
+  hasFairy?: boolean;
+  /** True if fairy in this cell was collected */
+  fairyCollected?: boolean;
 }
 
 /** Pure grid logic: generation, neighbours, flood fill. No scoring here. */

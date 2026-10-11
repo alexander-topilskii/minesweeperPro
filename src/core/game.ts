@@ -1,9 +1,10 @@
 import { Board, type Cell } from './board';
-import { CONFIG, cashoutMultiplier, cashoutScore, minesFor, targetFor } from '../config';
+import { CONFIG, calcBitsReward, minesFor, targetFor } from '../config';
 import type { ConsumableDef, ModuleDef, ModuleHooks, TurnContext } from './types';
 import { MODULES, getModule, sellValue } from '../modules/registry';
 import { getConsumable } from '../modules/consumables';
 import { generateActMap, type MapData, type MapNode, type NodeType } from './map';
+import { BehaviorTracker } from './behaviorTracker';
 
 /**
  * playing — round in progress (target may already be reached — see `cleared`)
@@ -44,7 +45,12 @@ export type GameEvent =
   | { type: 'fullClear'; bonusBits: number; bonusScore: number }
   | { type: 'blindClear'; bonusBits: number; bonusScore: number }
   | { type: 'cheaterCaught'; penalty: number }
-  | { type: 'flagLimit' };
+  | { type: 'flagLimit' }
+  | { type: 'stageCompletePending' }
+  | { type: 'fairyFound'; cell: Cell }
+  | { type: 'fairyRevived' }
+  | { type: 'bossFairyReward' }
+  | { type: 'longMatch'; bonusBits: number; cell: Cell };
 
 export class Game {
   board!: Board;
@@ -55,6 +61,10 @@ export class Game {
   hull: number = CONFIG.hull;
   bits = 0;
   combo = 0;
+  /** Number of Fairies in a Bottle held in inventory (revives upon defeat) */
+  fairies = 0;
+  /** Number of fairies spawned in the current Act (max 2) */
+  actFairiesSpawned = 0;
   /** Permanent-for-round additive Mult (e.g. Extremum). */
   roundMult = 0;
   /** Target reached this round; play continues for overcharge until resources run out or player advances. */
@@ -64,8 +74,6 @@ export class Game {
   /** Explicit reason for game over (loss) */
   lossReason?: 'clicks' | 'hull' | 'cashout';
   lastTurn?: TurnResult;
-  /** True while the sequential cashout lever validation roll is active. */
-  isCashoutRolling = false;
   /** True while the 3-slot machine jackpot roll animation is active. */
   isSlotRolling = false;
   /** Per-round scratch state for modules, keyed by module id. */
@@ -74,28 +82,23 @@ export class Game {
   /** Special clear outcome: 'full' (полная зачистка), 'blind' (зачистка вслепую), 'cheater' (жулик) */
   specialClear?: 'full' | 'blind' | 'cheater';
   cheaterPenalty = 0;
-  cheaterDetected = false;
   nextLevelHalfFlags = false;
   halfFlagsDebuff = false;
   maxFlags?: number;
   extraFlags = 0;
-  blindFlagsCount = 0;
-  private lastFlagToggleTime = 0;
-  private rapidBlindFlagStreak = 0;
 
-  /** Number of consecutive blind clicks (with 0 revealed neighbors) */
-  blindClicks = 0;
-  /** Active state of "Отвага и слабоумие" bonus mode */
-  daredevilActive = false;
+  /** Playstyle tracking & heuristics (speed demon, daredevil, anti-cheat) */
+  readonly behavior = new BehaviorTracker(() => this.emit({ type: 'change' }));
 
-  /** Fast click streak count (consecutive cell reveals with <1000ms gap) */
-  fastClicks = 0;
-  /** Active state of "Не уследить" speed demon bonus mode */
-  speedDemonActive = false;
-  /** Timestamp of the last cell reveal */
-  lastRevealTime = 0;
-  /** Inactivity timer to reset speed mode when player slows down */
-  private speedDemonTimer?: ReturnType<typeof setTimeout>;
+  get speedDemonActive(): boolean {
+    return this.behavior.speedDemonActive;
+  }
+  get daredevilActive(): boolean {
+    return this.behavior.daredevilActive;
+  }
+  get cheaterDetected(): boolean {
+    return this.behavior.cheaterDetected;
+  }
 
   /** Slay the Spire style branching map */
   map!: MapData;
@@ -170,14 +173,14 @@ export class Game {
 
     if (encounterType === 'elite') {
       mineCount += 3;
-      targetScore = Math.round(targetScore * 1.25);
+      targetScore = Math.round(targetScore * 1.2);
     } else if (encounterType === 'boss') {
       boardW = 14;
       boardH = 14;
       // 14x14 = 196 cells (~2x bigger than standard 10x10=100 cells)
-      mineCount = Math.round(mineCount * 1.7) + 3;
-      targetScore = Math.round(targetScore * 1.5);
-      clicks = CONFIG.clicks + 8; // 33 clicks for the massive arena
+      mineCount = Math.round(mineCount * 1.5) + 2;
+      targetScore = Math.round(targetScore * 1.3);
+      clicks = CONFIG.bossClicks; // 42 clicks for the massive arena
     }
 
     this.halfFlagsDebuff = this.nextLevelHalfFlags;
@@ -185,12 +188,9 @@ export class Game {
     this.maxFlags = this.halfFlagsDebuff
       ? Math.max(1, Math.floor(mineCount / 2))
       : mineCount + this.extraFlags;
-    this.cheaterDetected = false;
     this.cheaterPenalty = 0;
-    this.blindFlagsCount = 0;
-    this.rapidBlindFlagStreak = 0;
-    this.lastFlagToggleTime = 0;
     this.specialClear = undefined;
+    this.behavior.resetRound();
 
     this.board = new Board(boardW, boardH, mineCount);
     this.score = 0;
@@ -204,18 +204,8 @@ export class Game {
     this.activeConsumableIdx = undefined;
     this.roundState = {};
     this.lastTurn = undefined;
-    this.isCashoutRolling = false;
     this.isSlotRolling = false;
     this.lossReason = undefined;
-    this.blindClicks = 0;
-    this.daredevilActive = false;
-    this.fastClicks = 0;
-    this.speedDemonActive = false;
-    this.lastRevealTime = 0;
-    if (this.speedDemonTimer) {
-      clearTimeout(this.speedDemonTimer);
-      this.speedDemonTimer = undefined;
-    }
     this.status = 'playing';
     this.runHook('onRoundStart', (h) => h(this));
     this.emit({ type: 'newBoard' });
@@ -426,11 +416,134 @@ export class Game {
     this.refundSlotCharge();
   }
 
+  /** Generates board mines and seeds a Fairy in a Bottle if eligible. */
+  generateBoard(safe: Cell): void {
+    if (this.board.generated) return;
+    this.board.generate(safe);
+    this.maybeSpawnFairy(safe);
+  }
+
+  /**
+   * Starting from Act 2 (map.act >= 2), up to 2 times across the entire segment,
+   * a Fairy in a Bottle can spawn in a safe empty cell.
+   */
+  private maybeSpawnFairy(safe: Cell): void {
+    if (!this.map || this.map.act < 2) return;
+    if (this.actFairiesSpawned >= 2) return;
+    if (this.currentEncounterType !== 'battle' && this.currentEncounterType !== 'elite' && this.currentEncounterType !== 'boss') return;
+
+    const floor = this.currentMapNode?.floor ?? (this.stage % 8);
+    const needed = 2 - this.actFairiesSpawned;
+    const remainingFloors = Math.max(1, 8 - floor);
+
+    // Guaranteed if remaining combat opportunities are scarce, otherwise high probability (~50%)
+    const chance = remainingFloors <= needed ? 1.0 : Math.max(0.45, needed / remainingFloors);
+    if (Math.random() > chance) return;
+
+    // Pick an empty safe cell (preferring adjacent === 0, or any !c.mine, avoiding the clicked safe start)
+    const zeroSafeCandidates = this.board.cells.filter((c) => !c.mine && c.adjacent === 0 && c !== safe);
+    const anySafeCandidates = this.board.cells.filter((c) => !c.mine && c !== safe);
+    const pool = zeroSafeCandidates.length > 0 ? zeroSafeCandidates : anySafeCandidates;
+
+    if (pool.length > 0) {
+      const chosen = pool[Math.floor(Math.random() * pool.length)];
+      chosen.hasFairy = true;
+      this.actFairiesSpawned++;
+    }
+  }
+
+  checkFairy(cell: Cell, callouts?: string[]): boolean {
+    if (cell.hasFairy && !cell.fairyCollected && cell.revealed) {
+      cell.fairyCollected = true;
+      this.fairies++;
+      if (callouts) {
+        callouts.unshift('🧚‍♀️ ФЕЯ В БАНКЕ НАЙДЕНА!');
+      }
+      this.emit({ type: 'fairyFound', cell });
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Revives player after total defeat: consumes 1 fairy and restarts current stage/sector with full HP.
+   */
+  useFairyRevive(): boolean {
+    if (this.fairies <= 0) return false;
+    this.fairies--;
+    this.status = 'playing';
+    this.lossReason = undefined;
+    this.startStage(this.stage, this.currentEncounterType);
+    this.emit({ type: 'fairyRevived' });
+    this.emit({ type: 'change' });
+    return true;
+  }
+
+  /**
+   * Detects when the player was forced into a guess/50-50 choice and correctly picked safe:
+   * "Вытянул длинную спичку" (+$3 Bits reward).
+   */
+  checkLongMatch(cell: Cell, ctx: TurnContext): boolean {
+    if (cell.mine) return false;
+
+    const unrevealed = this.board.cells.filter((c) => !c.revealed && !c.defused);
+    const unrevealedMines = unrevealed.filter((c) => c.mine).length;
+
+    // 1. Endgame 50/50: Exactly 2 unopened cells left on the whole field, exactly 1 is a mine!
+    const isEndgame5050 = unrevealed.length === 2 && unrevealedMines === 1;
+
+    // 2. Endgame guess: 3-4 unopened cells left with at least 1 mine when most of the board has been swept
+    const isEndgameGuess =
+      unrevealed.length <= 4 &&
+      unrevealedMines >= 1 &&
+      unrevealedMines < unrevealed.length &&
+      this.board.cells.filter((c) => c.revealed).length >= 15;
+
+    // 3. Local 50/50: cell touches a revealed neighbor where exactly 1 mine is needed among 2 unrevealed neighbors
+    let isLocal5050 = false;
+    const revealedNeighbors = this.board.neighbors(cell).filter((n) => n.revealed);
+    for (const n of revealedNeighbors) {
+      const ns = this.board.neighbors(n);
+      const unrev = ns.filter((c) => !c.revealed && !c.flagged);
+      const flags = ns.filter((c) => c.flagged).length;
+      const needed = n.adjacent - flags;
+      if (needed === 1 && unrev.length === 2 && unrev.includes(cell)) {
+        const other = unrev.find((c) => c !== cell);
+        if (other && ((cell.mine && !other.mine) || (!cell.mine && other.mine))) {
+          // Verify that neither cell had an obvious free chord from any other neighbor
+          const cellHasTrivialSafe = this.board.neighbors(cell).some((rn) => {
+            if (!rn.revealed) return false;
+            const rflags = this.board.neighbors(rn).filter((c) => c.flagged).length;
+            return rn.adjacent - rflags === 0;
+          });
+          const otherHasTrivialSafe = this.board.neighbors(other).some((rn) => {
+            if (!rn.revealed) return false;
+            const rflags = this.board.neighbors(rn).filter((c) => c.flagged).length;
+            return rn.adjacent - rflags === 0;
+          });
+          if (!cellHasTrivialSafe && !otherHasTrivialSafe) {
+            isLocal5050 = true;
+            break;
+          }
+        }
+      }
+    }
+
+    if (isEndgame5050 || isLocal5050 || isEndgameGuess) {
+      const bonusBits = 3;
+      this.bits += bonusBits;
+      ctx.callouts.unshift('🥢 ВЫТЯНУЛ ДЛИННУЮ СПИЧКУ! (+$3)');
+      this.emit({ type: 'longMatch', bonusBits, cell });
+      return true;
+    }
+    return false;
+  }
+
   // ---------- Player Actions ----------
 
   click(x: number, y: number): void {
     const cell = this.board.get(x, y);
-    if (!cell || this.status !== 'playing' || this.isCashoutRolling) return;
+    if (!cell || this.status !== 'playing' || this.isSlotRolling || this.clicks <= 0) return;
 
     // If consumable targeting mode is active:
     if (this.activeConsumableIdx !== undefined) {
@@ -450,7 +563,7 @@ export class Game {
   }
 
   toggleFlag(x: number, y: number): void {
-    if (this.isCashoutRolling) return;
+    if (this.isSlotRolling) return;
     const cell = this.board.get(x, y);
     if (!cell || this.status !== 'playing' || cell.revealed) return;
 
@@ -482,75 +595,21 @@ export class Game {
 
     // If turn 0 with no cells revealed, generate board with safe start
     if (!this.board.generated) {
-      this.board.generate(cell);
+      this.generateBoard(cell);
     }
 
     cell.flagged = !cell.flagged;
 
     if (cell.flagged) {
-      // Analyze flag placement to detect blind / cheat guessing
       const hasRevealedNeighbor = this.board.neighbors(cell).some((n) => n.revealed);
-      const now = performance.now();
-      const timeSinceLast = this.lastFlagToggleTime > 0 ? now - this.lastFlagToggleTime : Infinity;
-      this.lastFlagToggleTime = now;
-
       const currentFlags = this.board.cells.filter((c) => c.flagged).length;
       const totalMines = this.board.cells.filter((c) => c.mine).length;
       const flagsRemaining = totalMines - currentFlags;
-
-      if (!hasRevealedNeighbor) {
-        this.blindFlagsCount++;
-        if (timeSinceLast < 650) {
-          this.rapidBlindFlagStreak++;
-        } else {
-          this.rapidBlindFlagStreak = 1;
-        }
-
-        // Suspicious behavior:
-        // 1) Guessing the final 1-2 flags blind without revealed neighbors
-        // 2) Placing 2+ blind flags without clues throughout the stage
-        // 3) Rapidly spamming flags across unopened cells
-        if (flagsRemaining <= 2 || this.blindFlagsCount >= 2 || this.rapidBlindFlagStreak >= 3) {
-          this.cheaterDetected = true;
-        }
-      } else {
-        this.rapidBlindFlagStreak = 0;
-      }
+      this.behavior.onFlagPlaced(hasRevealedNeighbor, flagsRemaining);
     }
 
     this.checkCompletionConditions();
     this.emit({ type: 'change' });
-  }
-
-  getCashoutInfo(): { count: number; mult: number; potScore: number } {
-    const count = this.board.cells.filter((c) => c.flagged).length;
-    const mult = cashoutMultiplier(count);
-    const potScore = cashoutScore(count, this.combo);
-    return { count, mult, potScore };
-  }
-
-  /** Arms the detonator and returns the array of flagged cells to validate */
-  startCashout(): Cell[] | null {
-    if (this.status !== 'playing' || this.isCashoutRolling) return null;
-    const flags = this.board.cells.filter((c) => c.flagged);
-    if (!flags.length) return null;
-
-    // If turn 0 with no cells revealed, generate board with mines
-    if (!this.board.generated) {
-      const safe = this.board.cells.find((c) => !c.flagged) || flags[0];
-      this.board.generate(safe);
-    }
-
-    if (this.speedDemonTimer) {
-      clearTimeout(this.speedDemonTimer);
-      this.speedDemonTimer = undefined;
-    }
-    this.speedDemonActive = false;
-    this.fastClicks = 0;
-    this.lastRevealTime = 0;
-    this.isCashoutRolling = true;
-    this.emit({ type: 'change' });
-    return flags;
   }
 
   getSlotFlags(): Cell[] {
@@ -568,7 +627,7 @@ export class Game {
     this.clicks++; // Mine explosion does not waste battery click
     this.combo = 0;
     this.roundMult = 0;
-    this.isCashoutRolling = false;
+    this.isSlotRolling = false;
     if (this.hull <= 0) {
       this.lossReason = 'hull';
       this.status = 'lost';
@@ -615,10 +674,14 @@ export class Game {
       s.slotFlag = false;
       s.flagged = false;
       s.revealed = true;
+      this.checkFairy(s);
       if (s.adjacent === 0) {
         const layers = this.board.flood(s);
         for (const layer of layers) {
-          for (const c of layer) c.revealed = true;
+          for (const c of layer) {
+            c.revealed = true;
+            this.checkFairy(c);
+          }
         }
       }
     }
@@ -627,7 +690,7 @@ export class Game {
     this.clicks++; // Click compensation
     this.combo = 0;
     this.roundMult = 0;
-    this.isCashoutRolling = false;
+    this.isSlotRolling = false;
 
     if (this.hull <= 0) {
       this.lossReason = 'hull';
@@ -650,14 +713,11 @@ export class Game {
     const bonusBits = 3;
 
     for (const c of slots) {
-      c.mine = false;
       c.slotFlag = false;
       c.flagged = false;
       c.revealed = true;
       c.defused = true;
     }
-
-    this.board.recomputeAdjacents();
 
     // Cascade safe cells around the 3 jackpot detonated points
     for (const m of slots) {
@@ -694,83 +754,9 @@ export class Game {
       this.cleared = true;
     }
 
-    this.isCashoutRolling = false;
+    this.isSlotRolling = false;
     this.emit({ type: 'change' });
     return { score: jackpotScore, bits: bonusBits };
-  }
-
-  /** Resolves false flag penalty: 1 HP lost, combo reset to 0 */
-  resolveCashoutBust(faultCell: Cell): void {
-    faultCell.flagged = false;
-    faultCell.slotFlag = false;
-    faultCell.revealed = true;
-    faultCell.wrong = true;
-    this.hull--;
-    this.combo = 0;
-    this.isCashoutRolling = false;
-    if (this.hull <= 0) {
-      this.lossReason = 'cashout';
-      this.status = 'lost';
-    }
-    this.emit({ type: 'change' });
-  }
-
-  /** Resolves jackpot win: defuses all mines, updates adjacents, opens safe neighbors, awards score & bits */
-  resolveCashoutJackpot(flaggedCells: Cell[]): { score: number; mult: number; count: number } {
-    const mult = cashoutMultiplier(flaggedCells.length);
-    const score = cashoutScore(flaggedCells.length, this.combo);
-
-    for (const c of flaggedCells) {
-      c.mine = false;
-      c.flagged = false;
-      c.revealed = true;
-      c.defused = true;
-    }
-
-    // Update numbers on adjacent cells
-    this.board.recomputeAdjacents();
-
-    // Safely reveal / cascade safe cells around detonation points
-    for (const m of flaggedCells) {
-      for (const n of this.board.neighbors(m)) {
-        if (!n.revealed && !n.mine && !n.flagged) {
-          const layers = this.board.flood(n);
-          if (layers.length) {
-            for (const layer of layers) {
-              for (const c of layer) c.revealed = true;
-            }
-          } else {
-            n.revealed = true;
-          }
-        }
-      }
-    }
-
-    this.score += score;
-    this.combo += flaggedCells.length;
-
-    // Bonus bits for daring gambles
-    if (flaggedCells.length >= 6) this.bits += 2;
-    else if (flaggedCells.length >= 3) this.bits += 1;
-
-    if (!this.cleared && this.score >= this.target) {
-      this.cleared = true;
-      this.emit({ type: 'cleared' });
-    }
-    if (this.cleared) {
-      const newLvl = Math.max(0, Math.floor((this.score - this.target) / (this.target * CONFIG.overchargeBitStep)));
-      if (newLvl > this.overchargeLevel) {
-        this.overchargeLevel = newLvl;
-        this.emit({ type: 'overchargeUp', level: newLvl });
-      }
-    }
-    if (this.board.safeRemaining() === 0) {
-      this.cleared = true;
-    }
-
-    this.isCashoutRolling = false;
-    this.emit({ type: 'change' });
-    return { score, mult, count: flaggedCells.length };
   }
 
   private reveal(cell: Cell): void {
@@ -778,38 +764,15 @@ export class Game {
     const hasRevealedNeighbor = ns.some((n) => n.revealed);
     const wasBlind = !hasRevealedNeighbor;
 
-    if (!this.board.generated) this.board.generate(cell);
+    if (!this.board.generated) this.generateBoard(cell);
     const ctx = this.beginTurn();
 
     if (cell.mine) {
-      // Подрыв: обнуление бонуса «Отвага и слабоумие» и «Не уследить»
-      this.blindClicks = 0;
-      this.daredevilActive = false;
-      this.checkSpeedStreak(ctx, true);
+      this.behavior.onMineHit(ctx);
       this.hitMine(cell, ctx);
     } else {
-      // Безопасный клик
-      if (wasBlind) {
-        this.blindClicks++;
-        if (this.daredevilActive) {
-          ctx.xMult *= 10;
-          ctx.callouts.unshift('🤩 «ОТВАГА И СЛАБОУМИЕ» ×10!');
-        } else if (this.blindClicks >= 5) {
-          this.daredevilActive = true;
-          ctx.xMult *= 10;
-          ctx.callouts.unshift('🤩 «ОТВАГА И СЛАБОУМИЕ» ВКЛЮЧЕНО! ×10 ОЧКОВ!');
-        } else {
-          ctx.callouts.push(`🎲 НАУГАД: ${this.blindClicks}/5`);
-        }
-      } else {
-        // Клик рядом с открытой цифрой: обнуление бонуса
-        if (this.daredevilActive) {
-          ctx.callouts.push('😌 РАСЧЁТЛИВЫЙ КЛИК: РЕЖИМ СБРОШЕН');
-        }
-        this.blindClicks = 0;
-        this.daredevilActive = false;
-      }
-      this.checkSpeedStreak(ctx, false);
+      this.checkLongMatch(cell, ctx);
+      this.behavior.onCellReveal(cell, wasBlind, ctx);
       this.openSafe(cell, ctx);
     }
 
@@ -817,75 +780,36 @@ export class Game {
   }
 
   private chord(cell: Cell): void {
-    if (cell.adjacent === 0 || cell.exploded) return;
+    if (this.clicks <= 0 || cell.mine || cell.adjacent === 0 || cell.exploded || cell.defused) return;
     const ns = this.board.neighbors(cell);
-    if (ns.filter((n) => n.flagged || n.exploded).length !== cell.adjacent) return;
+    if (ns.filter((n) => n.flagged || n.exploded || n.defused).length !== cell.adjacent) return;
     const targets = ns.filter((n) => !n.revealed && !n.flagged);
     if (!targets.length) return;
 
-    // Чорд — это продуманный клик по открытой цифре, сбрасывает режим наугад
-    if (this.daredevilActive) {
-      this.daredevilActive = false;
-    }
-    this.blindClicks = 0;
+    this.behavior.onChord();
 
     const ctx = this.beginTurn();
+    let safeOpened = 0;
     for (const t of targets) {
       if (t.revealed) continue;
-      if (t.mine) this.hitMine(t, ctx);
-      else this.openSafe(t, ctx);
-    }
-    this.checkSpeedStreak(ctx, ctx.exploded);
-    this.endTurn(ctx, cell);
-  }
-
-  private checkSpeedStreak(ctx: TurnContext, isDetonation: boolean): void {
-    if (this.speedDemonTimer) {
-      clearTimeout(this.speedDemonTimer);
-      this.speedDemonTimer = undefined;
-    }
-
-    if (isDetonation) {
-      this.fastClicks = 0;
-      this.speedDemonActive = false;
-      this.lastRevealTime = 0;
-      return;
-    }
-
-    const now = performance.now();
-    const delta = this.lastRevealTime > 0 ? now - this.lastRevealTime : Infinity;
-    this.lastRevealTime = now;
-
-    if (delta < 1000) {
-      this.fastClicks++;
-      if (this.speedDemonActive) {
-        ctx.xMult *= 3;
-        ctx.callouts.unshift('🚀 «НЕ УСЛЕДИТЬ» ×3!');
-      } else if (this.fastClicks >= 3) {
-        this.speedDemonActive = true;
-        ctx.xMult *= 3;
-        ctx.callouts.unshift('🚀 «НЕ УСЛЕДИТЬ» ВКЛЮЧЕНО! ×3 БОНУС!');
+      if (t.mine) {
+        this.hitMine(t, ctx);
       } else {
-        ctx.callouts.push(`⚡ СКОРОСТЬ: ${this.fastClicks}/3`);
+        safeOpened++;
+        this.checkLongMatch(t, ctx);
+        this.openSafe(t, ctx);
       }
-    } else {
-      if (this.speedDemonActive) {
-        this.speedDemonActive = false;
-        ctx.callouts.push('🐢 ЗАМЕДЛЕНИЕ: РЕЖИМ СБРОШЕН');
-      }
-      this.fastClicks = 0;
     }
 
-    if (this.speedDemonActive || this.fastClicks > 0) {
-      this.speedDemonTimer = setTimeout(() => {
-        if (this.status === 'playing' && (this.speedDemonActive || this.fastClicks > 0)) {
-          this.speedDemonActive = false;
-          this.fastClicks = 0;
-          this.lastRevealTime = 0;
-          this.emit({ type: 'change' });
-        }
-      }, 1020);
+    // Analytical play reward: Safe chording is battery-neutral!
+    // If chord opened at least 1 safe cell and didn't explode, refund the click.
+    if (!ctx.exploded && safeOpened > 0) {
+      this.clicks++;
+      ctx.callouts.unshift('🧠 ХОРД: БАТАРЕЯ СБЕРЕЖЕНА (+1 клик)');
     }
+
+    this.behavior.checkSpeedStreak(ctx, ctx.exploded);
+    this.endTurn(ctx, cell);
   }
 
   // ---------- Turn Pipeline ----------
@@ -915,6 +839,7 @@ export class Game {
       for (const c of layer) {
         ctx.revealed.push(c);
         ctx.data += c.adjacent || CONFIG.zeroData;
+        this.checkFairy(c, ctx.callouts);
         this.runHook('onReveal', (h) => h(this, ctx, c));
       }
     });
@@ -941,13 +866,23 @@ export class Game {
     const prevCombo = this.combo;
     let comboBroken = false;
     if (ctx.exploded) {
-      // Hitting a mine costs 1 HP and breaks combo multiplier, but keeps score and refunds the wasted click!
-      this.clicks++; // Compensate click so mine hit doesn't burn battery in vain
       this.combo = 0;
       this.roundMult = 0;
       score = 0;
       comboBroken = prevCombo >= 1;
       ctx.callouts.unshift(prevCombo >= 1 ? `💥 ПОДРЫВ! -1 HP · СЕРИЯ СБИТА` : '💥 ПОДРЫВ! -1 HP');
+
+      // Rule: "если после набора очков человек не нажал дальше но подорвался - он проиграл"
+      if (this.cleared) {
+        this.lossReason = 'hull';
+        this.status = 'lost';
+      } else if (this.hull <= 0) {
+        this.lossReason = 'hull';
+        this.status = 'lost';
+      } else {
+        // Survived mine hit: compensate click so battery isn't burned in vain
+        this.clicks++;
+      }
     } else {
       this.score += score;
       this.combo = prevCombo + 1;
@@ -960,6 +895,12 @@ export class Game {
               ? `🔥 ${this.combo} В РЯД! (+${bonusStr} Mult)`
               : `${this.combo} В РЯД! (+${bonusStr} Mult)`;
         ctx.callouts.unshift(title);
+      }
+
+      // Mastery momentum: every 5 combo streak rewards +1 Click!
+      if (this.combo > 0 && this.combo % 5 === 0) {
+        this.clicks++;
+        ctx.callouts.unshift(`🔋 СЕРИЯ ${this.combo}: +1 КЛИК!`);
       }
     }
 
@@ -977,6 +918,13 @@ export class Game {
     };
     this.currentTurnContext = undefined;
     this.emit({ type: 'turn', result: this.lastTurn });
+
+    // If player died on this turn, notify HUD and stop immediately!
+    if (this.status === 'lost') {
+      this.emit({ type: 'change' });
+      return;
+    }
+
     if (!this.cleared && this.score >= this.target) {
       this.cleared = true;
       this.emit({ type: 'cleared' });
@@ -991,13 +939,6 @@ export class Game {
 
     this.checkCompletionConditions();
 
-    if (this.hull <= 0) {
-      this.lossReason = 'hull';
-      this.status = 'lost';
-      this.emit({ type: 'change' });
-      return;
-    }
-
     if (this.clicks <= 0) {
       if (!this.cleared) {
         this.lossReason = 'clicks';
@@ -1005,7 +946,10 @@ export class Game {
         this.emit({ type: 'change' });
         return;
       } else {
-        this.endRound();
+        // Battery depleted after achieving the goal:
+        // Do NOT auto-advance to map!
+        // Show victory popup plate so the player sees stage stats and clicks "Дальше ▶"!
+        this.emit({ type: 'stageCompletePending' });
         this.emit({ type: 'change' });
         return;
       }
@@ -1015,17 +959,26 @@ export class Game {
   }
 
   checkCompletionConditions(): void {
-    if (this.status !== 'playing' || !this.board.generated) return;
+    if (this.status !== 'playing' || this.hull <= 0 || !this.board.generated) return;
 
     const mines = this.board.cells.filter((c) => c.mine);
     const flags = this.board.cells.filter((c) => c.flagged);
 
     // Number of active mines on board (mines that are not defused)
     const activeMines = mines.filter((c) => !c.defused);
-    const flaggedActiveMines = activeMines.filter((c) => c.flagged);
-    const falseFlags = flags.filter((c) => !c.mine);
     const safeRemaining = this.board.safeRemaining();
     const totalSafe = this.board.cells.filter((c) => !c.mine && !c.defused).length;
+
+    // If all safe cells on the board have been revealed:
+    // Auto-flag all remaining active mines so the board is complete!
+    if (safeRemaining === 0 && activeMines.length > 0) {
+      for (const m of activeMines) {
+        m.flagged = true;
+      }
+    }
+
+    const flaggedActiveMines = activeMines.filter((c) => c.flagged);
+    const falseFlags = flags.filter((c) => !c.mine);
 
     // All active mines correctly flagged and zero false flags
     const allMinesCorrectlyFlagged =
@@ -1099,9 +1052,7 @@ export class Game {
     }
 
     const overcharge = Math.floor((this.score - this.target) / (this.target * CONFIG.overchargeBitStep));
-    let bitsEarned = CONFIG.bitsPerWin + this.clicks * CONFIG.bitsPerClickLeft + Math.max(0, overcharge);
-    if (this.currentEncounterType === 'elite') bitsEarned += 3;
-    if (this.currentEncounterType === 'boss') bitsEarned += 5;
+    const bitsEarned = calcBitsReward(this.clicks, overcharge, this.currentEncounterType);
     this.bits += bitsEarned;
 
     if (this.currentMapNode) {
@@ -1109,12 +1060,17 @@ export class Game {
     }
 
     if (this.currentEncounterType === 'boss') {
+      if (this.map.act === 1) {
+        this.fairies++;
+        this.emit({ type: 'bossFairyReward' });
+      }
       if (this.map.act >= 3) {
         this.status = 'victory';
       } else {
         const nextAct = this.map.act + 1;
         this.map = generateActMap(nextAct);
         this.currentMapNode = this.map.nodes[0];
+        this.actFairiesSpawned = 0;
         this.status = 'map';
       }
     } else {

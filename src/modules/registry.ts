@@ -296,20 +296,14 @@ export const MODULES: ModuleDef[] = [
     hooks: {
       onMineHit(g, ctx, cell) {
         g.fire('MOD-HAZ-FUGAS');
-        let defusedAny = false;
         const neighbors = g.board.neighbors(cell);
-        // Сначала обезвреживаем мины среди 8 соседей для пересчёта цифр
+        // Обезвреживаем мины среди 8 соседей, сохраняя исходные цифры на доске
         for (const n of neighbors) {
           if (!n.revealed && n.mine) {
-            n.mine = false;
             n.defused = true;
             n.revealed = true;
             n.flagged = false;
-            defusedAny = true;
           }
-        }
-        if (defusedAny) {
-          g.board.recomputeAdjacents();
         }
         // Вскрываем все безопасные клетки вокруг
         for (const n of neighbors) {

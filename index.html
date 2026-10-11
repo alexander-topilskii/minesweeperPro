@@ -32,7 +32,16 @@
         <section class="game-col">
           <div class="header bevel-in">
             <div class="lcd" id="lcd-clicks" title="Клики">020</div>
-            <button class="smiley bevel-out" id="smiley" title=""></button>
+            <div class="header-dock" id="header-dock">
+              <button class="smiley bevel-out" id="smiley" title=""></button>
+              <div class="dock-slot bevel-in empty" id="dock-fairy" title="Фея в банке (Второе дыхание)">
+                <span class="dock-icon">🧚</span>
+                <span class="dock-badge" id="dock-fairy-badge">0</span>
+              </div>
+              <div class="dock-slot bevel-in empty" title="Слот супер-эффекта (заблокирован)"></div>
+              <div class="dock-slot bevel-in empty" title="Слот супер-эффекта (заблокирован)"></div>
+              <div class="dock-slot bevel-in empty" title="Слот супер-эффекта (заблокирован)"></div>
+            </div>
             <div class="lcd wide" id="lcd-score" title="Очки">000000</div>
           </div>
           <div class="target-container">
@@ -58,6 +67,7 @@
             <div class="stats">
               <span>Жизни (HP)</span><b id="hull"></b>
               <span>Флаги</span><b id="flags-status">0/10</b>
+              <span>Фея в банке</span><b id="fairy-status">0</b>
               <span>Комбо</span><b id="combo"></b>
               <span>Множитель</span><b id="mult-status">×1.00</b>
               <span>Баланс</span><b id="bits"></b>

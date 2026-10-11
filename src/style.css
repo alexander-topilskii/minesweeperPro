@@ -125,7 +125,89 @@ body {
 }
 @keyframes blink { 50% { opacity: 0.35; } }
 
-.smiley { width: 40px; height: 40px; font-size: 24px; padding: 0; cursor: pointer; line-height: 1; }
+.header-dock {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dock-slot {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: #c0c0c0;
+  box-sizing: border-box;
+  user-select: none;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.dock-slot.empty {
+  background: #b4b4b4;
+  border: 2px solid;
+  border-color: var(--dark) var(--light) var(--light) var(--dark);
+}
+
+.dock-slot.empty .dock-icon {
+  opacity: 0.18;
+  filter: grayscale(1);
+}
+
+.dock-slot.empty .dock-badge {
+  display: none;
+}
+
+.dock-slot.fairy-active {
+  background: #092a1d;
+  border: 2px solid;
+  border-color: #55ffbb #008855 #008855 #55ffbb;
+  box-shadow: 0 0 10px rgba(0, 255, 170, 0.45);
+  cursor: pointer;
+  animation: fairy-dock-pulse 2.2s ease-in-out infinite alternate;
+}
+
+.dock-slot.fairy-active:hover {
+  box-shadow: 0 0 16px rgba(0, 255, 170, 0.85);
+  transform: scale(1.05);
+}
+
+.dock-slot.fairy-active:active {
+  border-color: #008855 #55ffbb #55ffbb #008855;
+}
+
+.dock-slot.fairy-active .dock-icon {
+  font-size: 22px;
+  filter: drop-shadow(0 0 5px #00ffaa);
+  animation: fairy-dock-hover 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes fairy-dock-pulse {
+  0% { box-shadow: 0 0 6px rgba(0, 255, 170, 0.3); }
+  100% { box-shadow: 0 0 14px rgba(0, 255, 170, 0.75); }
+}
+
+@keyframes fairy-dock-hover {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-2px); }
+}
+
+.dock-badge {
+  position: absolute;
+  bottom: 1px;
+  right: 1px;
+  background: #000;
+  color: #00ffaa;
+  font: bold 9px/1 'Courier New', monospace;
+  padding: 1px 3px;
+  border: 1px solid #00ffaa;
+  border-radius: 1px;
+  text-shadow: 0 0 3px #00ffaa;
+}
+
+.smiley { width: 38px; height: 38px; font-size: 24px; padding: 0; cursor: pointer; line-height: 1; }
 .smiley:active { border-color: var(--shadow) var(--light) var(--light) var(--shadow); }
 .smiley::after { content: '🙂'; }
 body.pressing .smiley[data-state='normal']::after { content: '😮'; }
@@ -1566,6 +1648,14 @@ legend { padding: 0 4px; }
   text-shadow: 0 0 10px rgba(255, 68, 0, 1), 0 0 22px rgba(255, 220, 0, 0.95), 1.5px 1.5px 0 #000;
 }
 
+/* Money / Luck bonus (e.g. "Вытянул длинную спичку"): glowing emerald & gold */
+.bonus-item.money {
+  color: #00ffaa;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  text-shadow: 0 0 10px rgba(0, 255, 170, 1), 0 0 22px rgba(255, 215, 0, 0.95), 1.5px 1.5px 0 #000;
+}
+
 @keyframes bonus-item-float {
   0% {
     opacity: 0;
@@ -1726,6 +1816,27 @@ legend { padding: 0 4px; }
   font-weight: 900;
   color: #008800;
   letter-spacing: 0.5px;
+}
+.fairy-dialog {
+  border: 2px solid #00ffaa !important;
+  box-shadow: 0 0 20px rgba(0, 255, 170, 0.35);
+}
+.fairy-revive-btn {
+  background: #083424 !important;
+  color: #00ffaa !important;
+  border-color: #00ffaa !important;
+  font-weight: 900 !important;
+  font-size: 13px !important;
+  padding: 8px 16px !important;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  box-shadow: 0 0 12px rgba(0, 255, 170, 0.4);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+.fairy-revive-btn:hover {
+  background: #0e4e37 !important;
+  box-shadow: 0 0 18px rgba(0, 255, 170, 0.7);
+  transform: scale(1.03);
 }
 .cleared-dialog {
   width: 380px;

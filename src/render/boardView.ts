@@ -8,7 +8,7 @@ const SHADOW = '#808080';
 const NUM_COLORS = ['', '#0000ff', '#008000', '#ff0000', '#000080', '#800000', '#008080', '#000000', '#808080'];
 const TEX = 32; // low-res + nearest filter = crisp pixel look
 
-type TileKind = 'hidden' | 'hover' | 'pressed' | 'flag' | 'slotFlag' | 'slotGlow' | 'mine' | 'exploded' | 'wrongFlag' | 'defused' | 'checking' | `n${number}`;
+type TileKind = 'hidden' | 'hover' | 'pressed' | 'flag' | 'slotFlag' | 'slotGlow' | 'mine' | 'exploded' | 'wrongFlag' | 'defused' | 'checking' | 'fairy' | `n${number}`;
 
 function makeTexture(draw: (ctx: CanvasRenderingContext2D, s: number) => void): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
@@ -162,6 +162,57 @@ function slotMachine(ctx: CanvasRenderingContext2D, s: number, glow = false) {
   ctx.fill();
 }
 
+function fairyBottle(ctx: CanvasRenderingContext2D, s: number) {
+  const u = s / 16;
+  const c = s / 2;
+
+  // Translucent jar interior
+  ctx.fillStyle = '#08251b';
+  ctx.fillRect(4 * u, 3.5 * u, 8 * u, 10.5 * u);
+
+  // Jar neck and rim
+  ctx.fillStyle = '#a7f3d0';
+  ctx.fillRect(5.5 * u, 2.5 * u, 5 * u, 1.8 * u);
+  // Cork stopper
+  ctx.fillStyle = '#d97706';
+  ctx.fillRect(6 * u, 1.2 * u, 4 * u, 1.6 * u);
+
+  // Glass outline & highlight
+  ctx.strokeStyle = '#34d399';
+  ctx.lineWidth = 1 * u;
+  ctx.strokeRect(4 * u, 3.5 * u, 8 * u, 10.5 * u);
+
+  // Radiant fairy glow
+  ctx.fillStyle = '#10b981';
+  ctx.beginPath();
+  ctx.arc(c, 9 * u, 3.2 * u, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Fairy wings (delicate glowing cyan)
+  ctx.fillStyle = '#67e8f9';
+  ctx.beginPath();
+  ctx.ellipse(c - 2 * u, 7.8 * u, 1.8 * u, 1 * u, -Math.PI / 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(c + 2 * u, 7.8 * u, 1.8 * u, 1 * u, Math.PI / 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Fairy body (bright star-like core)
+  ctx.fillStyle = '#fef08a';
+  ctx.beginPath();
+  ctx.arc(c, 8.8 * u, 1.3 * u, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(c, 8.8 * u, 0.7 * u, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Magic sparkles
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(c - 1 * u, 11 * u, 0.8 * u, 0.8 * u);
+  ctx.fillRect(c + 2 * u, 6 * u, 0.8 * u, 0.8 * u);
+}
+
 function buildMaterials(): Record<TileKind, THREE.MeshBasicMaterial> {
   const mk = (draw: (c: CanvasRenderingContext2D, s: number) => void) =>
     new THREE.MeshBasicMaterial({ map: makeTexture(draw) });
@@ -187,6 +238,13 @@ function buildMaterials(): Record<TileKind, THREE.MeshBasicMaterial> {
       slotMachine(c, s, true);
       c.strokeStyle = '#ffaa00';
       c.lineWidth = 2;
+      c.strokeRect(1, 1, s - 2, s - 2);
+    }),
+    fairy: mk((c, s) => {
+      sunken(c, s, '#0f291e');
+      fairyBottle(c, s);
+      c.strokeStyle = '#00ffaa';
+      c.lineWidth = 1;
       c.strokeRect(1, 1, s - 2, s - 2);
     }),
   };
@@ -321,7 +379,11 @@ export class BoardView {
     if (c.exploded) return 'exploded';
     if (c.defused) return 'defused';
     if (c.wrong) return 'wrongFlag';
-    if (c.revealed) return c.mine ? 'mine' : `n${c.adjacent}`;
+    if (c.revealed) {
+      if (c.mine) return 'mine';
+      if (c.hasFairy) return 'fairy';
+      return `n${c.adjacent}`;
+    }
     if (c.slotFlag) return this.glowingSlotCells.has(c) ? 'slotGlow' : 'slotFlag';
     if (c.flagged) return 'flag';
     if (c === this.pressed) return 'pressed';
