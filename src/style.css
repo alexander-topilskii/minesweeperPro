@@ -1796,11 +1796,23 @@ legend { padding: 0 4px; }
   color: #ffaa00;
   text-shadow: 0 0 4px rgba(255, 170, 0, 0.5);
 }
-.cleared-prompt {
-  font-size: 11px;
-  color: #444;
-  line-height: 1.35;
-  margin-top: 2px;
+.highlight-full-clear b {
+  color: #ffe600;
+  text-shadow: 0 0 6px rgba(255, 230, 0, 0.7);
+  font-weight: bold;
+}
+.highlight-blind-clear b {
+  color: #00e5ff;
+  text-shadow: 0 0 6px rgba(0, 229, 255, 0.7);
+  font-weight: bold;
+}
+.highlight-cheater b {
+  color: #ff3333;
+  text-shadow: 0 0 6px rgba(255, 50, 50, 0.7);
+  font-weight: bold;
+}
+.text-danger {
+  color: #ff4444 !important;
 }
 .dialog-btns { display: flex; justify-content: center; padding: 0 0 12px; }
 .dialog-btns.cleared-btns {

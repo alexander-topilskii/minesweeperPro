@@ -17,9 +17,7 @@ function clicksRemainingText(n: number): string {
 /** DOM HUD in classic Minesweeper window chrome. */
 export class Hud {
   private displayedScore = 0;
-  private clearedPopupDismissed = false;
-  private clearedPopupReady = false;
-  private clearedTimer: ReturnType<typeof setTimeout> | null = null;
+  private clearedPopupOpen = false;
 
   constructor(
     private game: Game,
@@ -35,20 +33,11 @@ export class Hud {
       const target = e.target as HTMLElement;
       if (target.closest('[data-action="restart"]')) this.actions.restart();
       if (target.closest('[data-action="advance"]')) {
-        if (this.clearedTimer) {
-          clearTimeout(this.clearedTimer);
-          this.clearedTimer = null;
-        }
+        this.clearedPopupOpen = false;
         this.actions.advance();
       }
       if (target.closest('[data-action="dismiss-cleared"]')) {
-        this.clearedPopupDismissed = true;
-        this.clearedPopupReady = false;
-        if (this.clearedTimer) {
-          clearTimeout(this.clearedTimer);
-          this.clearedTimer = null;
-        }
-        this.render();
+        this.dismissClearedPopup();
       }
     });
 
@@ -60,25 +49,26 @@ export class Hud {
     });
 
     $('btn-advance')?.addEventListener('click', () => {
-      if (this.clearedTimer) {
-        clearTimeout(this.clearedTimer);
-        this.clearedTimer = null;
-      }
-      this.actions.advance();
+      this.showClearedPopup();
     });
 
     requestAnimationFrame(this.tick);
   }
 
+  showClearedPopup(): void {
+    this.clearedPopupOpen = true;
+    this.render();
+  }
+
+  dismissClearedPopup(): void {
+    this.clearedPopupOpen = false;
+    this.render();
+  }
+
   setGame(game: Game): void {
     this.game = game;
     this.displayedScore = 0;
-    this.clearedPopupDismissed = false;
-    this.clearedPopupReady = false;
-    if (this.clearedTimer) {
-      clearTimeout(this.clearedTimer);
-      this.clearedTimer = null;
-    }
+    this.clearedPopupOpen = false;
     const feed = $('bonus-feed');
     if (feed) feed.innerHTML = '';
   }
@@ -98,24 +88,6 @@ export class Hud {
 
   render(): void {
     const g = this.game;
-
-    if (!g.cleared) {
-      this.clearedPopupDismissed = false;
-      this.clearedPopupReady = false;
-      if (this.clearedTimer) {
-        clearTimeout(this.clearedTimer);
-        this.clearedTimer = null;
-      }
-    } else if (!this.clearedPopupDismissed && !this.clearedPopupReady && !this.clearedTimer && g.status === 'playing') {
-      const delay = g.isSlotRolling ? 2500 : 1500;
-      this.clearedTimer = setTimeout(() => {
-        this.clearedTimer = null;
-        if (this.game.status === 'playing' && this.game.cleared && !this.clearedPopupDismissed) {
-          this.clearedPopupReady = true;
-          this.render();
-        }
-      }, delay);
-    }
 
     // View toggle between game, shop, and map
     const isShop = g.status === 'shop';
@@ -244,7 +216,10 @@ export class Hud {
       ? `Торговый пост Сектора ${g.sector}`
       : `Сектор ${g.sector}/${CONFIG.sectors} · ${g.stageName}`;
 
-    if (isShop) {
+    if (g.halfFlagsDebuff && g.maxFlags !== undefined) {
+      const flagsUsed = g.board ? g.board.cells.filter((c) => c.flagged).length : 0;
+      $('status-hint').textContent = `⚠️ ДЕБАФ «ПОЛОВИНА ФЛАГОВ»: установлено ${flagsUsed} из ${g.maxFlags} макс.!`;
+    } else if (isShop) {
       $('status-hint').textContent = '🛒 Торговый пост: покупайте модули и Флаги-Слоты 🎰 за $ · Нажмите «В БОЙ ▶» для старта';
     } else if (g.activeConsumableIdx !== undefined) {
       const con = g.consumables[g.activeConsumableIdx];
@@ -439,20 +414,38 @@ export class Hud {
       return;
     }
 
-    if (g.cleared && this.clearedPopupReady && !this.clearedPopupDismissed && g.status === 'playing') {
+    if (g.cleared && this.clearedPopupOpen && g.status === 'playing') {
       el.hidden = false;
       const overchargeLvl = Math.max(0, Math.floor((g.score - g.target) / (g.target * CONFIG.overchargeBitStep)));
       const bitsReward = CONFIG.bitsPerWin + g.clicks * CONFIG.bitsPerClickLeft + overchargeLvl;
 
+      const titleIcon =
+        g.specialClear === 'full'
+          ? '🏆'
+          : g.specialClear === 'blind'
+          ? '🕶️'
+          : g.specialClear === 'cheater'
+          ? '🕵️'
+          : '🎉';
+
+      const headerText =
+        g.specialClear === 'full'
+          ? 'ПОЛНАЯ ЗАЧИСТКА СЕКТОРА!'
+          : g.specialClear === 'blind'
+          ? 'ЗАЧИСТКА ВСЛЕПУЮ!'
+          : g.specialClear === 'cheater'
+          ? 'СЕКТОР ЗАКРЫТ (ЖУЛИК)'
+          : `СЕКТОР ${g.sector} ЗАЧИЩЕН!`;
+
       el.innerHTML = `<div class="window dialog cleared-dialog">
         <div class="titlebar">
           <span class="title">Сектор зачищен — Задание выполнено!</span>
-          <span class="tbtns"><b data-action="dismiss-cleared" title="Допройти поле">×</b></span>
+          <span class="tbtns"><b data-action="dismiss-cleared" title="Закрыть окно">×</b></span>
         </div>
         <div class="dialog-body">
-          <span class="dicon">🎉</span>
+          <span class="dicon">${titleIcon}</span>
           <div class="dialog-content">
-            <div class="cleared-header">СЕКТОР ${g.sector} ЗАЧИЩЕН!</div>
+            <div class="cleared-header">${headerText}</div>
             <div class="stats-box bevel-in">
               <div class="stat-row">
                 <span>Сектор:</span>
@@ -470,6 +463,25 @@ export class Hud {
                 <span>Награда:</span>
                 <b class="highlight-bits">+$${bitsReward}</b>
               </div>
+              ${g.specialClear === 'full' ? `
+              <div class="stat-row highlight-full-clear">
+                <span>Бонус «Полная зачистка»:</span>
+                <b>+$10 Bits (+500 PTS)</b>
+              </div>` : ''}
+              ${g.specialClear === 'blind' ? `
+              <div class="stat-row highlight-blind-clear">
+                <span>Бонус «Зачистка вслепую»:</span>
+                <b>+$12 Bits (+600 PTS)</b>
+              </div>` : ''}
+              ${g.specialClear === 'cheater' ? `
+              <div class="stat-row highlight-cheater">
+                <span>Метка «Жулик»:</span>
+                <b class="text-danger">Штраф -500 очков</b>
+              </div>
+              <div class="stat-row highlight-cheater">
+                <span>Дебаф на след. сектор:</span>
+                <b class="text-danger">Половина флагов</b>
+              </div>` : ''}
               ${overchargeLvl > 0 ? `
               <div class="stat-row">
                 <span>Overcharge:</span>
@@ -479,8 +491,7 @@ export class Hud {
           </div>
         </div>
         <div class="dialog-btns cleared-btns">
-          <button class="btn btn-primary bevel-out" data-action="advance">Продолжить ▶</button>
-          <button class="btn bevel-out" data-action="dismiss-cleared">Допройти поле ⛏</button>
+          <button class="btn btn-primary bevel-out" data-action="advance">Дальше ▶</button>
         </div>
       </div>`;
       return;

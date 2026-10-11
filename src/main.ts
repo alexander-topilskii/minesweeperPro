@@ -422,7 +422,7 @@ const runSlotJackpotRoll = async () => {
 const hud = new Hud(game, {
   smiley: () => {
     if (game.status === 'lost' || game.status === 'victory') restart();
-    else game.advance();
+    else if (game.cleared && game.status === 'playing') hud.showClearedPopup();
   },
   advance: () => {
     game.advance();
@@ -527,6 +527,33 @@ function wire(g: Game) {
         sfx.cascade(8);
         hud.showBonus([`⚡ OVERCHARGE УР. ${e.level}!`, `+$1 БОНУС ДЛЯ МАГАЗИНА`], false);
         hud.log(`⚡ <b>Overcharge Ур. ${e.level}:</b> +$1 к награде`, 'super');
+        break;
+      case 'fullClear':
+        fx.banner(headerEl, `🏆 ПОЛНАЯ ЗАЧИСТКА!\n+$${e.bonusBits} БОНУС · +${e.bonusScore} PTS`, 'rainbow');
+        sfx.jackpotFanfare();
+        hud.showBonus(['🏆 ПОЛНАЯ ЗАЧИСТКА СЕКТОРА!', `+$${e.bonusBits} BITS · +${e.bonusScore} PTS`], false);
+        hud.log(`🏆 <b>Полная зачистка поля:</b> открыты все клетки и помечены все мины! Награда +$${e.bonusBits} Bits (+${e.bonusScore} PTS)`, 'super');
+        hud.showClearedPopup();
+        break;
+      case 'blindClear':
+        fx.banner(headerEl, `🕶️ ЗАЧИСТКА ВСЛЕПУЮ!\n+$${e.bonusBits} БОНУС · +${e.bonusScore} PTS`, 'rainbow');
+        sfx.jackpotFanfare();
+        hud.showBonus(['🕶️ ЗАЧИСТКА ВСЛЕПУЮ!', `+$${e.bonusBits} BITS · +${e.bonusScore} PTS`], false);
+        hud.log(`🕶️ <b>Зачистка вслепую:</b> все мины найдены в тумане войны! Награда +$${e.bonusBits} Bits (+${e.bonusScore} PTS)`, 'super');
+        hud.showClearedPopup();
+        break;
+      case 'cheaterCaught':
+        fx.banner(headerEl, `🕵️ ЖУЛИК ПОЙМАН!\nШТРАФ -${e.penalty} PTS`, 'hurt');
+        sfx.boom();
+        hud.showBonus(['🕵️ МЕТКА «ЖУЛИК»!', `-${e.penalty} PTS · ДЕБАФ «ПОЛОВИНА ФЛАГОВ»`], true);
+        hud.log(`🕵️ <b>Жулик пойман:</b> попытка наугад накликать победу флагами! Штраф: -${e.penalty} очков. Дебаф «Половина флагов» на след. уровень`, 'broken');
+        hud.showClearedPopup();
+        break;
+      case 'flagLimit':
+        fx.banner(headerEl, `⚠️ ЛИМИТ ФЛАГОВ!\nМАКСИМУМ: ${g.maxFlags}`, 'hurt');
+        sfx.boom();
+        hud.showBonus(['⚠️ ЛИМИТ ФЛАГОВ!', `ДЕБАФ: ТОЛЬКО ${g.maxFlags} ФЛАГОВ`], true);
+        hud.log(`⚠️ <b>Лимит исчерпан:</b> действует дебаф «Половина флагов» (макс. ${g.maxFlags} шт.)!`, 'broken');
         break;
       case 'roundEnd':
         hud.log(`🏁 <b>Сектор закрыт:</b> ${e.summary.score}/${e.summary.target} · Награда +$${e.summary.bits}`, 'money');

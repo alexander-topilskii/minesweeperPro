@@ -40,7 +40,11 @@ export type GameEvent =
   | { type: 'overchargeUp'; level: number }
   | { type: 'roundEnd'; summary: RoundSummary }
   | { type: 'moduleFired'; id: string }
-  | { type: 'newBoard' };
+  | { type: 'newBoard' }
+  | { type: 'fullClear'; bonusBits: number; bonusScore: number }
+  | { type: 'blindClear'; bonusBits: number; bonusScore: number }
+  | { type: 'cheaterCaught'; penalty: number }
+  | { type: 'flagLimit' };
 
 export class Game {
   board!: Board;
@@ -66,6 +70,17 @@ export class Game {
   isSlotRolling = false;
   /** Per-round scratch state for modules, keyed by module id. */
   roundState: Record<string, unknown> = {};
+
+  /** Special clear outcome: 'full' (полная зачистка), 'blind' (зачистка вслепую), 'cheater' (жулик) */
+  specialClear?: 'full' | 'blind' | 'cheater';
+  cheaterPenalty = 0;
+  cheaterDetected = false;
+  nextLevelHalfFlags = false;
+  halfFlagsDebuff = false;
+  maxFlags?: number;
+  blindFlagsCount = 0;
+  private lastFlagToggleTime = 0;
+  private rapidBlindFlagStreak = 0;
 
   /** Number of consecutive blind clicks (with 0 revealed neighbors) */
   blindClicks = 0;
@@ -156,6 +171,16 @@ export class Game {
       mineCount += 5;
       targetScore = Math.round(targetScore * 1.5);
     }
+
+    this.halfFlagsDebuff = this.nextLevelHalfFlags;
+    this.nextLevelHalfFlags = false;
+    this.maxFlags = this.halfFlagsDebuff ? Math.max(1, Math.floor(mineCount / 2)) : undefined;
+    this.cheaterDetected = false;
+    this.cheaterPenalty = 0;
+    this.blindFlagsCount = 0;
+    this.rapidBlindFlagStreak = 0;
+    this.lastFlagToggleTime = 0;
+    this.specialClear = undefined;
 
     this.board = new Board(CONFIG.board.w, CONFIG.board.h, mineCount);
     this.score = 0;
@@ -416,7 +441,54 @@ export class Game {
       return;
     }
 
+    // Debuff check: Half flags
+    if (!cell.flagged && this.halfFlagsDebuff && this.maxFlags !== undefined) {
+      const currentFlags = this.board.cells.filter((c) => c.flagged).length;
+      if (currentFlags >= this.maxFlags) {
+        this.emit({ type: 'flagLimit' });
+        return;
+      }
+    }
+
+    // If turn 0 with no cells revealed, generate board with safe start
+    if (!this.board.generated) {
+      this.board.generate(cell);
+    }
+
     cell.flagged = !cell.flagged;
+
+    if (cell.flagged) {
+      // Analyze flag placement to detect blind / cheat guessing
+      const hasRevealedNeighbor = this.board.neighbors(cell).some((n) => n.revealed);
+      const now = performance.now();
+      const timeSinceLast = this.lastFlagToggleTime > 0 ? now - this.lastFlagToggleTime : Infinity;
+      this.lastFlagToggleTime = now;
+
+      const currentFlags = this.board.cells.filter((c) => c.flagged).length;
+      const totalMines = this.board.cells.filter((c) => c.mine).length;
+      const flagsRemaining = totalMines - currentFlags;
+
+      if (!hasRevealedNeighbor) {
+        this.blindFlagsCount++;
+        if (timeSinceLast < 650) {
+          this.rapidBlindFlagStreak++;
+        } else {
+          this.rapidBlindFlagStreak = 1;
+        }
+
+        // Suspicious behavior:
+        // 1) Guessing the final 1-2 flags blind without revealed neighbors
+        // 2) Placing 2+ blind flags without clues throughout the stage
+        // 3) Rapidly spamming flags across unopened cells
+        if (flagsRemaining <= 2 || this.blindFlagsCount >= 2 || this.rapidBlindFlagStreak >= 3) {
+          this.cheaterDetected = true;
+        }
+      } else {
+        this.rapidBlindFlagStreak = 0;
+      }
+    }
+
+    this.checkCompletionConditions();
     this.emit({ type: 'change' });
   }
 
@@ -886,20 +958,103 @@ export class Game {
         this.emit({ type: 'overchargeUp', level: newLvl });
       }
     }
-    if (this.hull <= 0 || this.clicks <= 0 || this.board.safeRemaining() === 0) this.endRound();
+
+    this.checkCompletionConditions();
+
+    if (this.hull <= 0) {
+      this.lossReason = 'hull';
+      this.status = 'lost';
+      this.emit({ type: 'change' });
+      return;
+    }
+
+    if (this.clicks <= 0) {
+      if (!this.cleared) {
+        this.lossReason = 'clicks';
+        this.status = 'lost';
+        this.emit({ type: 'change' });
+        return;
+      } else {
+        this.endRound();
+        this.emit({ type: 'change' });
+        return;
+      }
+    }
+
     this.emit({ type: 'change' });
   }
 
-  private endRound(): void {
-    if (!this.cleared) {
-      if (this.hull <= 0) {
-        this.lossReason = 'hull';
-      } else if (this.clicks <= 0) {
-        this.lossReason = 'clicks';
-      } else {
-        // Safe tiles exhausted but target not met
-        this.lossReason = 'clicks';
+  checkCompletionConditions(): void {
+    if (this.status !== 'playing' || !this.board.generated) return;
+
+    const mines = this.board.cells.filter((c) => c.mine);
+    const flags = this.board.cells.filter((c) => c.flagged);
+
+    // Number of active mines on board (mines that are not defused)
+    const activeMines = mines.filter((c) => !c.defused);
+    const flaggedActiveMines = activeMines.filter((c) => c.flagged);
+    const falseFlags = flags.filter((c) => !c.mine);
+    const safeRemaining = this.board.safeRemaining();
+    const totalSafe = this.board.cells.filter((c) => !c.mine && !c.defused).length;
+
+    // All active mines correctly flagged and zero false flags
+    const allMinesCorrectlyFlagged =
+      activeMines.length > 0 &&
+      flaggedActiveMines.length === activeMines.length &&
+      falseFlags.length === 0;
+
+    // Case 1: ПОЛНАЯ ЗАЧИСТКА (Full Clear)
+    // All safe cells revealed AND all active mines correctly flagged
+    if (safeRemaining === 0 && allMinesCorrectlyFlagged) {
+      if (this.specialClear !== 'full') {
+        this.specialClear = 'full';
+        this.cleared = true;
+        const bonusBits = 10;
+        const bonusScore = 500;
+        this.bits += bonusBits;
+        this.score += bonusScore;
+        this.emit({ type: 'fullClear', bonusBits, bonusScore });
       }
+      return;
+    }
+
+    // Case 2: ЗАЧИСТКА ВСЛЕПУЮ (Blind Clear) or ЖУЛИК (Cheater)
+    // All active mines correctly flagged, but territory is still hidden
+    // At least 15% of safe cells or at least 3 safe cells unrevealed
+    const unrevealedSafe = this.board.cells.filter((c) => !c.mine && !c.defused && !c.revealed).length;
+    const isBlindClearThreshold = unrevealedSafe >= Math.max(3, Math.round(totalSafe * 0.15));
+
+    if (allMinesCorrectlyFlagged && isBlindClearThreshold && !this.specialClear) {
+      if (this.cheaterDetected) {
+        // Cheater detected: blind guessing the final flags!
+        this.specialClear = 'cheater';
+        this.cleared = true;
+        const penalty = 500;
+        this.cheaterPenalty = penalty;
+        this.score = Math.max(0, this.score - penalty);
+        this.nextLevelHalfFlags = true;
+        this.emit({ type: 'cheaterCaught', penalty });
+      } else {
+        // Legitimate blind clear
+        this.specialClear = 'blind';
+        this.cleared = true;
+        const bonusBits = 12;
+        const bonusScore = 600;
+        this.bits += bonusBits;
+        this.score += bonusScore;
+        this.emit({ type: 'blindClear', bonusBits, bonusScore });
+      }
+    }
+  }
+
+  private endRound(): void {
+    if (this.hull <= 0) {
+      this.lossReason = 'hull';
+      this.status = 'lost';
+      return;
+    }
+    if (!this.cleared) {
+      this.lossReason = 'clicks';
       this.status = 'lost';
       return;
     }
