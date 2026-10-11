@@ -159,6 +159,19 @@ export class Hud {
 
     $('turn').innerHTML = this.turnHtml(g.lastTurn);
     $('hull').innerHTML = Array.from({ length: g.maxHull }, (_, i) => `<i class="${i < g.hull ? 'on' : ''}"></i>`).join('');
+    const flagsEl = $('flags-status');
+    if (flagsEl) {
+      const flagsUsed = g.board.cells.filter((c) => c.flagged).length;
+      const flagsMax = g.maxFlags ?? g.board.mineCount;
+      const isLimitReached = flagsUsed >= flagsMax;
+      flagsEl.textContent = `${flagsUsed}/${flagsMax}`;
+      flagsEl.style.color = isLimitReached ? 'var(--col-danger, #ef4444)' : '';
+      if (g.halfFlagsDebuff) {
+        flagsEl.title = 'Действует дебаф «Половина флагов»';
+      } else {
+        flagsEl.title = 'Лимит по количеству мин на поле';
+      }
+    }
     $('combo').textContent = `${g.combo}  (+${fmt(g.combo * CONFIG.comboMultStep)})`;
 
     const baseMult = 1 + g.combo * CONFIG.comboMultStep + g.roundMult;

@@ -1,7 +1,7 @@
 import { Board, type Cell } from './board';
 import { CONFIG, cashoutMultiplier, cashoutScore, minesFor, targetFor } from '../config';
 import type { ConsumableDef, ModuleDef, ModuleHooks, TurnContext } from './types';
-import { getModule, sellValue } from '../modules/registry';
+import { MODULES, getModule, sellValue } from '../modules/registry';
 import { getConsumable } from '../modules/consumables';
 import { generateActMap, type MapData, type MapNode, type NodeType } from './map';
 
@@ -78,6 +78,7 @@ export class Game {
   nextLevelHalfFlags = false;
   halfFlagsDebuff = false;
   maxFlags?: number;
+  extraFlags = 0;
   blindFlagsCount = 0;
   private lastFlagToggleTime = 0;
   private rapidBlindFlagStreak = 0;
@@ -181,7 +182,9 @@ export class Game {
 
     this.halfFlagsDebuff = this.nextLevelHalfFlags;
     this.nextLevelHalfFlags = false;
-    this.maxFlags = this.halfFlagsDebuff ? Math.max(1, Math.floor(mineCount / 2)) : undefined;
+    this.maxFlags = this.halfFlagsDebuff
+      ? Math.max(1, Math.floor(mineCount / 2))
+      : mineCount + this.extraFlags;
     this.cheaterDetected = false;
     this.cheaterPenalty = 0;
     this.blindFlagsCount = 0;
@@ -270,10 +273,30 @@ export class Game {
   generateShop(): void {
     const slotDef = getConsumable('CON-SLOT');
     const hpMod = getModule('MOD-HAZ-HP');
+    const fugasMod = getModule('MOD-HAZ-FUGAS');
     const hpCount = this.modules.filter((m) => m.id === 'MOD-HAZ-HP').length;
+    const hasFugas = this.modules.some((m) => m.id === 'MOD-HAZ-FUGAS');
+
+    const modOffers: ModuleDef[] = [];
+    if (hpCount < 2) {
+      modOffers.push({ ...hpMod });
+    }
+    if (!hasFugas) {
+      modOffers.push({ ...fugasMod });
+    }
+
+    // Добавляем 1-2 случайных модуля из пула, которыми игрок еще не владеет
+    const ownedIds = new Set(this.modules.map((m) => m.id));
+    ownedIds.add('MOD-HAZ-HP');
+    ownedIds.add('MOD-HAZ-FUGAS');
+    const pool = MODULES.filter((m) => !ownedIds.has(m.id));
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    for (const m of shuffled.slice(0, 2)) {
+      modOffers.push({ ...m });
+    }
 
     this.shopOffers = {
-      modules: hpCount < 2 ? [{ ...hpMod }] : [],
+      modules: modOffers,
       consumables: [{ ...slotDef }],
     };
   }
@@ -448,8 +471,8 @@ export class Game {
       return;
     }
 
-    // Debuff check: Half flags
-    if (!cell.flagged && this.halfFlagsDebuff && this.maxFlags !== undefined) {
+    // Flag limit check (default: capped by mineCount + extraFlags; half if debuffed)
+    if (!cell.flagged && this.maxFlags !== undefined) {
       const currentFlags = this.board.cells.filter((c) => c.flagged).length;
       if (currentFlags >= this.maxFlags) {
         this.emit({ type: 'flagLimit' });

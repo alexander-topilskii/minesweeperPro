@@ -556,8 +556,13 @@ function wire(g: Game) {
       case 'flagLimit':
         fx.banner(headerEl, `⚠️ ЛИМИТ ФЛАГОВ!\nМАКСИМУМ: ${g.maxFlags}`, 'hurt');
         sfx.boom();
-        hud.showBonus(['⚠️ ЛИМИТ ФЛАГОВ!', `ДЕБАФ: ТОЛЬКО ${g.maxFlags} ФЛАГОВ`], true);
-        hud.log(`⚠️ <b>Лимит исчерпан:</b> действует дебаф «Половина флагов» (макс. ${g.maxFlags} шт.)!`, 'broken');
+        if (g.halfFlagsDebuff) {
+          hud.showBonus(['⚠️ ЛИМИТ ФЛАГОВ!', `ДЕБАФ: ТОЛЬКО ${g.maxFlags} ФЛАГОВ`], true);
+          hud.log(`⚠️ <b>Лимит исчерпан:</b> действует дебаф «Половина флагов» (макс. ${g.maxFlags} шт.)!`, 'broken');
+        } else {
+          hud.showBonus(['⚠️ ЛИМИТ ФЛАГОВ!', `МАКСИМУМ ${g.maxFlags} (ПО ЧИСЛУ МИН)`], true);
+          hud.log(`⚠️ <b>Лимит флагов:</b> установлено ${g.maxFlags}/${g.maxFlags} шт. Больше флагов ставить нельзя!`, 'warning');
+        }
         break;
       case 'roundEnd':
         hud.log(`🏁 <b>Сектор закрыт:</b> ${e.summary.score}/${e.summary.target} · Награда +$${e.summary.bits}`, 'money');
