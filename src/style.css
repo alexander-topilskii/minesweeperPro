@@ -203,53 +203,189 @@ body.cleared .target i {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 5;
-  display: none;
+  z-index: 12;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
   box-sizing: border-box;
 }
 .board-lights.active {
-  display: block;
+  opacity: 1;
 }
 .board-lights.jackpot {
-  display: block;
+  opacity: 1;
   animation: lights-jackpot 0.2s infinite alternate;
 }
 .board-lights.bust {
-  display: block;
+  opacity: 1;
   animation: lights-bust 0.25s infinite alternate;
 }
 
 .chase-lamp {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: #ffdd00;
-  box-shadow: 0 0 8px #ffdd00, 0 0 14px #ff5500;
+  background: #ffea00;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 8px #ffea00, 0 0 16px #ff7700;
   transform: translate(-50%, -50%);
-  transition: opacity 0.08s, transform 0.08s;
-}
-.chase-lamp.off {
-  opacity: 0.2;
-  box-shadow: none;
-  background: #554400;
+  transition: opacity 0.08s, filter 0.08s;
+  box-sizing: border-box;
 }
 .chase-lamp.alt {
   background: #ff0055;
-  box-shadow: 0 0 8px #ff0055, 0 0 14px #ff00bb;
+  box-shadow: 0 0 8px #ff0055, 0 0 16px #ff00aa;
 }
-.chase-lamp.alt.off {
-  background: #440011;
+.chase-lamp.off {
+  opacity: 0.18;
   box-shadow: none;
+  filter: brightness(0.25);
 }
 
 @keyframes lights-jackpot {
-  0% { box-shadow: inset 0 0 25px #ffd700, inset 0 0 45px #00ff88; }
-  100% { box-shadow: inset 0 0 35px #ff00ea, inset 0 0 60px #00e5ff; }
+  0% { box-shadow: inset 0 0 30px #ffd700, inset 0 0 50px #00ff88; }
+  100% { box-shadow: inset 0 0 45px #ff00ea, inset 0 0 70px #00e5ff; }
 }
 @keyframes lights-bust {
-  0% { box-shadow: inset 0 0 30px #ff0000; }
-  100% { box-shadow: inset 0 0 50px #880000; }
+  0% { box-shadow: inset 0 0 35px #ff0000; }
+  100% { box-shadow: inset 0 0 60px #880000; }
+}
+
+/* ===== Mini Slot Machine Reel Widget ===== */
+.slot-reels-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.slot-reel-widget {
+  position: absolute;
+  box-sizing: border-box;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.slot-reel-cabinet {
+  width: 96%;
+  height: 96%;
+  background: linear-gradient(180deg, #1c0810 0%, #351020 50%, #15060c 100%);
+  border: 2px solid #d4af37;
+  border-radius: 4px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.85), 0 0 10px rgba(255, 215, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+
+.slot-reel-cabinet.confirmed {
+  border-color: #00ff88;
+  box-shadow: 0 0 18px #00ff88, inset 0 0 10px rgba(0, 255, 136, 0.4);
+  transform: scale(1.08);
+}
+
+.slot-reel-cabinet.bust {
+  border-color: #ff0055;
+  box-shadow: 0 0 22px #ff0055, inset 0 0 12px rgba(255, 0, 85, 0.5);
+  animation: reel-bust-shake 0.3s;
+}
+
+.slot-reel-cabinet.jackpot {
+  border-color: #ffe600;
+  box-shadow: 0 0 25px #ffe600, 0 0 45px #ff00aa;
+  animation: reel-jackpot-bounce 0.4s infinite alternate;
+}
+
+.slot-marquee-header {
+  height: 24%;
+  background: linear-gradient(90deg, #b8860b, #ffd700, #ffec8b, #ffd700, #b8860b);
+  color: #1a080f;
+  font-family: var(--font-lcd, monospace);
+  font-size: clamp(8px, 1.6vw, 11px);
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1.5px solid #5a4208;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.slot-reel-viewport {
+  flex: 1;
+  background: radial-gradient(ellipse at center, #2b2b2b 0%, #0d0d0d 100%);
+  position: relative;
+  overflow: hidden;
+  border-radius: 2px;
+  box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.9), inset 0 -3px 6px rgba(0, 0, 0, 0.9);
+}
+
+.slot-reel-strip {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
+.slot-reel-strip.spinning {
+  animation: slot-reel-roll 0.22s linear infinite;
+  filter: blur(1px);
+}
+
+.slot-reel-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  user-select: none;
+  line-height: 1;
+}
+
+.slot-glass-glare {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.05) 40%, rgba(0, 0, 0, 0.2) 60%, rgba(255, 255, 255, 0.12) 100%);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.slot-reel-item .digit-1 { color: #3b82f6; font-weight: 900; }
+.slot-reel-item .digit-2 { color: #10b981; font-weight: 900; }
+.slot-reel-item .digit-3 { color: #ef4444; font-weight: 900; }
+.slot-reel-item .digit-4 { color: #818cf8; font-weight: 900; }
+.slot-reel-item .digit-5 { color: #f87171; font-weight: 900; }
+.slot-reel-item .digit-6 { color: #06b6d4; font-weight: 900; }
+.slot-reel-item .digit-7 { color: #fbbf24; font-weight: 900; }
+.slot-reel-item .digit-8 { color: #9ca3af; font-weight: 900; }
+.slot-reel-item .digit-empty { color: #888888; font-size: 0.6em; }
+.slot-reel-item .bomb-icon {
+  font-size: 0.88em;
+  filter: drop-shadow(0 0 5px #ffea00);
+}
+
+@keyframes slot-reel-roll {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+
+@keyframes reel-bust-shake {
+  0%, 100% { transform: scale(1.08) translateX(0); }
+  25% { transform: scale(1.08) translateX(-4px); }
+  75% { transform: scale(1.08) translateX(4px); }
+}
+
+@keyframes reel-jackpot-bounce {
+  0% { transform: scale(1.08); }
+  100% { transform: scale(1.16); }
 }
 
 /* ===== Massive Mechanical Cashout Lever Chassis ===== */

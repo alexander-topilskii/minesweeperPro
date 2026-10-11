@@ -90,45 +90,182 @@ function buildBoardBorderLights(): HTMLElement[] {
   if (!container) return [];
   container.innerHTML = '';
   const lamps: HTMLElement[] = [];
-  // Place perimeter lamps (e.g. 24 lamps around the border)
-  const total = 28;
+  const perSide = 8;
+  const total = perSide * 4; // 32 lamps encircling the entire board perimeter
+
   for (let i = 0; i < total; i++) {
     const lamp = document.createElement('div');
-    lamp.className = `chase-lamp ${i % 2 === 0 ? '' : 'alt'}`;
+    lamp.className = `chase-lamp ${i % 2 === 0 ? '' : 'alt'} off`;
+
+    let xCss = '';
+    let yCss = '';
+    if (i < perSide) {
+      // Top Edge: Left to Right
+      const pct = ((i + 0.5) / perSide) * 100;
+      xCss = `${pct.toFixed(2)}%`;
+      yCss = '7px';
+    } else if (i < perSide * 2) {
+      // Right Edge: Top to Bottom
+      const idx = i - perSide;
+      const pct = ((idx + 0.5) / perSide) * 100;
+      xCss = 'calc(100% - 7px)';
+      yCss = `${pct.toFixed(2)}%`;
+    } else if (i < perSide * 3) {
+      // Bottom Edge: Right to Left
+      const idx = i - perSide * 2;
+      const pct = ((perSide - 1 - idx + 0.5) / perSide) * 100;
+      xCss = `${pct.toFixed(2)}%`;
+      yCss = 'calc(100% - 7px)';
+    } else {
+      // Left Edge: Bottom to Top
+      const idx = i - perSide * 3;
+      const pct = ((perSide - 1 - idx + 0.5) / perSide) * 100;
+      xCss = '7px';
+      yCss = `${pct.toFixed(2)}%`;
+    }
+
+    lamp.style.left = xCss;
+    lamp.style.top = yCss;
     container.appendChild(lamp);
     lamps.push(lamp);
   }
-  layoutBoardLamps(lamps);
   return lamps;
 }
 
-function layoutBoardLamps(lamps: HTMLElement[]) {
-  const container = document.getElementById('board-lights');
-  if (!container || !lamps.length) return;
-  const w = container.clientWidth;
-  const h = container.clientHeight;
-  const perimeter = 2 * (w + h);
-  const step = perimeter / lamps.length;
+interface SlotReelController {
+  widget: HTMLElement;
+  cabinet: HTMLElement;
+  viewport: HTMLElement;
+  strip: HTMLElement;
+  cell: Cell;
+  itemH: number;
+}
 
-  lamps.forEach((lamp, i) => {
-    let d = i * step;
-    let x = 0;
-    let y = 0;
-    if (d < w) {
-      x = d;
-      y = 6;
-    } else if (d < w + h) {
-      x = w - 6;
-      y = d - w;
-    } else if (d < 2 * w + h) {
-      x = w - (d - (w + h));
-      y = h - 6;
+const REEL_SYMBOLS = ['🍒', '💣', '7️⃣', '💎', '🔔', '🍀', '🍋', '⭐'];
+
+function mountSlotReels(slots: Cell[]): { controllers: SlotReelController[]; layer: HTMLElement } {
+  let layer = document.getElementById('slot-reels') as HTMLElement | null;
+  if (!layer) {
+    layer = document.createElement('div');
+    layer.id = 'slot-reels';
+    layer.className = 'slot-reels-layer';
+    boardEl.appendChild(layer);
+  }
+  layer.innerHTML = '';
+
+  const p0 = view.cellToScreen(0, 0);
+  const p1 = view.cellToScreen(1, 0);
+  const cellSize = Math.max(38, Math.round(Math.abs(p1.x - p0.x)));
+  const itemH = Math.round(cellSize * 0.72);
+
+  const controllers: SlotReelController[] = [];
+
+  slots.forEach((cell, idx) => {
+    const pos = view.cellToScreen(cell.x, cell.y);
+    const widget = document.createElement('div');
+    widget.className = 'slot-reel-widget';
+    widget.style.left = `${pos.x}px`;
+    widget.style.top = `${pos.y}px`;
+    widget.style.width = `${cellSize}px`;
+    widget.style.height = `${cellSize}px`;
+
+    const cabinet = document.createElement('div');
+    cabinet.className = 'slot-reel-cabinet';
+
+    const header = document.createElement('div');
+    header.className = 'slot-marquee-header';
+    header.textContent = `777 [${idx + 1}]`;
+
+    const viewport = document.createElement('div');
+    viewport.className = 'slot-reel-viewport';
+
+    const glare = document.createElement('div');
+    glare.className = 'slot-glass-glare';
+
+    const strip = document.createElement('div');
+    strip.className = 'slot-reel-strip spinning';
+
+    // Repeating symbols loop for seamless vertical scroll animation
+    const fullLoop = [...REEL_SYMBOLS, ...REEL_SYMBOLS];
+    fullLoop.forEach((sym) => {
+      const item = document.createElement('div');
+      item.className = 'slot-reel-item';
+      item.style.height = `${itemH}px`;
+      item.style.fontSize = `${Math.round(itemH * 0.62)}px`;
+      item.textContent = sym;
+      strip.appendChild(item);
+    });
+
+    viewport.appendChild(glare);
+    viewport.appendChild(strip);
+    cabinet.appendChild(header);
+    cabinet.appendChild(viewport);
+    widget.appendChild(cabinet);
+    layer.appendChild(widget);
+
+    controllers.push({ widget, cabinet, viewport, strip, cell, itemH });
+  });
+
+  return { controllers, layer };
+}
+
+function stopSlotReel(controller: SlotReelController): Promise<boolean> {
+  return new Promise((resolve) => {
+    const { cabinet, strip, cell, itemH } = controller;
+
+    // Build the landing sequence: passing spinning symbols followed by the ACTUAL cell content
+    const passing = [
+      REEL_SYMBOLS[Math.floor(Math.random() * REEL_SYMBOLS.length)],
+      REEL_SYMBOLS[Math.floor(Math.random() * REEL_SYMBOLS.length)],
+      REEL_SYMBOLS[Math.floor(Math.random() * REEL_SYMBOLS.length)],
+      REEL_SYMBOLS[Math.floor(Math.random() * REEL_SYMBOLS.length)],
+    ];
+
+    strip.innerHTML = '';
+    passing.forEach((sym) => {
+      const item = document.createElement('div');
+      item.className = 'slot-reel-item';
+      item.style.height = `${itemH}px`;
+      item.style.fontSize = `${Math.round(itemH * 0.62)}px`;
+      item.textContent = sym;
+      strip.appendChild(item);
+    });
+
+    // The true target symbol item
+    const targetItem = document.createElement('div');
+    targetItem.className = 'slot-reel-item final-symbol';
+    targetItem.style.height = `${itemH}px`;
+    targetItem.style.fontSize = `${Math.round(itemH * 0.62)}px`;
+
+    if (cell.mine) {
+      targetItem.innerHTML = `<span class="bomb-icon">💣</span>`;
     } else {
-      x = 6;
-      y = h - (d - (2 * w + h));
+      if (cell.adjacent > 0) {
+        targetItem.innerHTML = `<span class="digit-${cell.adjacent}">${cell.adjacent}</span>`;
+      } else {
+        targetItem.innerHTML = `<span class="digit-empty">·</span>`;
+      }
     }
-    lamp.style.left = `${x.toFixed(1)}px`;
-    lamp.style.top = `${y.toFixed(1)}px`;
+    strip.appendChild(targetItem);
+
+    // Stop continuous loop and trigger elastic mechanical snap to the target symbol
+    strip.classList.remove('spinning');
+    strip.style.transform = 'translateY(0px)';
+    void strip.offsetHeight; // force reflow
+
+    const targetOffset = passing.length * itemH;
+    strip.style.transition = 'transform 0.42s cubic-bezier(0.12, 0.88, 0.35, 1.25)';
+    strip.style.transform = `translateY(-${targetOffset}px)`;
+
+    setTimeout(() => {
+      if (cell.mine) {
+        cabinet.classList.add('confirmed');
+        resolve(true);
+      } else {
+        cabinet.classList.add('bust');
+        resolve(false);
+      }
+    }, 430);
   });
 }
 
@@ -141,7 +278,7 @@ const runSlotJackpotRoll = async () => {
   game.isSlotRolling = true;
   view.locked = true;
 
-  // Make sure board has mines generated
+  // Ensure mines are fully generated before spinning
   if (!game.board.generated) {
     const safe = game.board.cells.find((c) => !c.slotFlag && !c.flagged) || slots[0];
     game.board.generate(safe);
@@ -153,50 +290,49 @@ const runSlotJackpotRoll = async () => {
     lightsContainer.className = 'board-lights active';
   }
 
-  // Phase 1: Arcade lights chasing along the contour & slot machines blinking
-  // Sound of spinning slot reels!
+  // Mount the 3 spinning slot-machine reels on top of the slot cells
+  const { controllers, layer: reelsLayer } = mountSlotReels(slots);
+
+  // Phase 1: Arcade contour lights chasing & reels spinning sound
   let chaseTick = 0;
   const chaseInterval = setInterval(() => {
     chaseTick++;
     sfx.slotReelSpin(chaseTick);
-    // Cycle lamp highlights
     lamps.forEach((l, idx) => {
       const active = (idx + chaseTick) % 4 === 0;
       l.classList.toggle('off', !active);
     });
-    // Slot tiles flash in rhythm
-    const glowToggle = chaseTick % 2 === 0;
-    view.setGlowingSlotCells(glowToggle ? slots : []);
   }, 90);
 
-  // Spin for 1.8 seconds of escalating suspense
-  await new Promise((r) => setTimeout(r, 1800));
-  clearInterval(chaseInterval);
+  // Spin for 1.2s before the first reel begins stopping
+  await new Promise((r) => setTimeout(r, 1200));
 
-  // Phase 2: Sequential reveal of the 3 slot machine flags
+  // Phase 2: Sequential deceleration and snap of the 3 reels (Reel 1 → Reel 2 → Reel 3)
   let failedCell: Cell | null = null;
   for (let i = 0; i < 3; i++) {
-    const c = slots[i];
-    view.setCheckingCell(c);
+    const controller = controllers[i];
+    const c = controller.cell;
+
     sfx.slotReelStop(i);
+    const isMine = await stopSlotReel(controller);
     view.kick(0.2);
 
-    await new Promise((r) => setTimeout(r, 450));
-
-    if (c.mine) {
-      // Confirmed mine!
+    if (isMine) {
+      // Confirmed mine under reel!
       sfx.flagConfirmed(i);
       const p = cellScreen(c.x, c.y);
       fx.burst(p.x, p.y, `<span class="score-main" style="color:#00ff88;font-size:20px;">⚡ МИНА [7]!</span>`, 'score');
+      // Build tension before next reel stops
+      await new Promise((r) => setTimeout(r, 450));
     } else {
-      // False flag! Safe cell under slot machine -> BUST!
+      // Safe cell under slot machine -> BUST!
       failedCell = c;
       break;
     }
   }
 
-  view.setCheckingCell(undefined);
-  view.setGlowingSlotCells([]);
+  clearInterval(chaseInterval);
+  lamps.forEach((l) => l.classList.add('off'));
 
   if (failedCell) {
     // BUST / EXPLOSION
@@ -213,10 +349,12 @@ const runSlotJackpotRoll = async () => {
     hud.showBonus([`💥 ОСЕЧКА СЛОТА! -1 HP`, `СЕРИЯ СБИТА`], true);
     hud.render();
     setTimeout(() => {
+      reelsLayer.remove();
       if (lightsContainer) lightsContainer.className = 'board-lights';
-    }, 1200);
+    }, 1400);
   } else {
     // 3 MINES CONFIRMED: 777 JACKPOT!
+    controllers.forEach((ctrl) => ctrl.cabinet.classList.add('jackpot'));
     sfx.jackpotFanfare();
     view.kick(0.45);
     if (lightsContainer) lightsContainer.className = 'board-lights jackpot';
@@ -233,6 +371,7 @@ const runSlotJackpotRoll = async () => {
     ], false);
     hud.render();
     setTimeout(() => {
+      reelsLayer.remove();
       game.isSlotRolling = false;
       if (lightsContainer) lightsContainer.className = 'board-lights';
     }, 2200);
