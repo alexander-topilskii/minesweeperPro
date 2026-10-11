@@ -1,7 +1,7 @@
 /** Tunable balance values. Mirror of docs/gdd/03-scoring.md — keep in sync. */
 export const CONFIG = {
   board: { w: 10, h: 10 },
-  baseMines: 15,
+  baseMines: 10,
   minesPerStage: 1,
   clicks: 25,
   hull: 1,
@@ -56,5 +56,5 @@ export function targetFor(stage: number): number {
 }
 
 export function minesFor(stage: number): number {
-  return CONFIG.baseMines + stage * CONFIG.minesPerStage + (stage % 3 === 1 ? 3 : 0);
+  return CONFIG.baseMines + stage * CONFIG.minesPerStage;
 }
