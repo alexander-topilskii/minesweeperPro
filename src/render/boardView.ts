@@ -9,7 +9,7 @@ const SHADOW = '#808080';
 const NUM_COLORS = ['', '#0000ff', '#008000', '#ff0000', '#000080', '#800000', '#008080', '#000000', '#808080'];
 const TEX = 32; // low-res + nearest filter = crisp pixel look
 
-type TileKind = 'hidden' | 'hover' | 'pressed' | 'flag' | 'slotFlag' | 'slotGlow' | 'mine' | 'exploded' | 'wrongFlag' | 'defused' | 'checking' | 'fairy' | 'frozen' | `n${number}`;
+type TileKind = 'hidden' | 'hover' | 'pressed' | 'flag' | 'slotFlag' | 'slotGlow' | 'mine' | 'exploded' | 'wrongFlag' | 'defused' | 'checking' | 'fairy' | 'frozen' | `n${number}` | `sel_n${number}`;
 
 function makeTexture(draw: (ctx: CanvasRenderingContext2D, s: number) => void): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
@@ -293,7 +293,16 @@ function buildMaterials(): Record<TileKind, THREE.MeshBasicMaterial> {
     }),
     frozen: mk((c, s) => frozenBlock(c, s)),
   };
-  for (let n = 0; n <= 8; n++) mats[`n${n}`] = mk((c, s) => (sunken(c, s), n && digit(c, s, n)));
+  for (let n = 0; n <= 8; n++) {
+    mats[`n${n}`] = mk((c, s) => (sunken(c, s), n && digit(c, s, n)));
+    mats[`sel_n${n}`] = mk((c, s) => {
+      sunken(c, s, '#fff3b0'); // Warm golden background
+      if (n) digit(c, s, n);
+      c.strokeStyle = '#e67300';
+      c.lineWidth = 2.5;
+      c.strokeRect(1, 1, s - 2, s - 2);
+    });
+  }
   return mats as Record<TileKind, THREE.MeshBasicMaterial>;
 }
 
@@ -318,7 +327,13 @@ export class BoardView {
   private longPress?: number;
   private checkingCell?: Cell;
   private glowingSlotCells = new Set<Cell>();
+  private selectedCells = new Set<Cell>();
   public locked = false;
+
+  setSelectedCells(cells: Cell[]): void {
+    this.selectedCells = new Set(cells);
+    this.sync();
+  }
 
   setCheckingCell(c?: Cell): void {
     this.checkingCell = c;
@@ -428,6 +443,7 @@ export class BoardView {
     if (c.revealed) {
       if (c.mine) return 'mine';
       if (c.hasFairy) return 'fairy';
+      if (this.selectedCells.has(c)) return `sel_n${c.adjacent}`;
       return `n${c.adjacent}`;
     }
     if (c.slotFlag) return this.glowingSlotCells.has(c) ? 'slotGlow' : 'slotFlag';

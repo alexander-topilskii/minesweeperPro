@@ -7,6 +7,7 @@ import { MapView } from './ui/mapView';
 import { SlotMachineView } from './ui/slotMachineView';
 import { Fx } from './ui/fx';
 import { Sfx } from './audio/sfx';
+import { PrototypeManager } from './core/prototypeModes';
 
 /** Starter loadout: empty so the game starts vanilla without overwhelming the player. */
 const STARTER: string[] = [];
@@ -16,8 +17,101 @@ const headerEl = (document.querySelector('.header') || boardEl) as HTMLElement;
 const sfx = new Sfx();
 const fx = new Fx();
 let game = new Game(STARTER.map(getModule));
+const proto = new PrototypeManager(game);
 
 const view = new BoardView(boardEl, (x, y, action) => {
+  const cell = game.board.get(x, y);
+
+  // --- MODE 3: CLAIMING / HAND SELECTION ---
+  if (proto.currentMode === 'mode3_claim') {
+    if (action === 'flag') {
+      game.toggleFlag(x, y);
+      checkSlotAutoRoll();
+      return;
+    }
+    // Clicking an already revealed number cell toggles selection for the Hand
+    if (cell && cell.revealed && !cell.mine && !cell.frozen) {
+      proto.toggleSelectCell(cell);
+      view.setSelectedCells(proto.selectedCells);
+      updateHandBar();
+      sfx.click();
+      return;
+    }
+    // Clicking an unrevealed cell reveals it
+    game.click(x, y);
+    checkSlotAutoRoll();
+    return;
+  }
+
+  // --- MODE 1: CHORD КАК РУКА ---
+  if (proto.currentMode === 'mode1_chord') {
+    if (action === 'flag') {
+      game.toggleFlag(x, y);
+      checkSlotAutoRoll();
+      return;
+    }
+    if (cell && cell.revealed && cell.adjacent > 0) {
+      const ns = game.board.neighbors(cell);
+      const flagCount = ns.filter((n) => n.flagged || n.defused).length;
+      if (flagCount === cell.adjacent) {
+        const targets = ns.filter((n) => !n.revealed && !n.flagged && !n.frozen);
+        const prevRevealed = game.board.cells.filter((c) => c.revealed).length;
+
+        game.click(x, y);
+        checkSlotAutoRoll();
+
+        const newlyRevealed = game.board.cells.filter((c) => c.revealed).length - prevRevealed;
+        if (targets.length > 0 && newlyRevealed > 0) {
+          const evalRes = proto.evaluateChord(cell, targets, newlyRevealed > targets.length ? 1 : 0);
+          game.score += evalRes.totalScore;
+          sfx.jackpotFanfare();
+          fx.balatroPopup(evalRes.name, evalRes.chips, evalRes.mult, evalRes.totalScore, evalRes.badge);
+          hud.log(`🎯 <b>${evalRes.name}:</b> ${evalRes.chips} Chips × x${evalRes.mult} Mult = +${evalRes.totalScore} PTS!`, 'super');
+          if (game.score >= game.target && !game.cleared) {
+            game.cleared = true;
+            game.emit({ type: 'cleared' });
+          }
+          hud.render();
+        }
+        return;
+      }
+    }
+    game.click(x, y);
+    checkSlotAutoRoll();
+    return;
+  }
+
+  // --- MODE 2: ПАТТЕРНЫ САПЁРА ---
+  if (proto.currentMode === 'mode2_patterns') {
+    if (action === 'flag') {
+      game.toggleFlag(x, y);
+      checkSlotAutoRoll();
+      return;
+    }
+    const prevZeroes = game.board.cells.filter((c) => c.revealed && c.adjacent === 0).length;
+    game.click(x, y);
+    checkSlotAutoRoll();
+    const currZeroes = game.board.cells.filter((c) => c.revealed && c.adjacent === 0).length;
+    const cascadeZeroes = currZeroes - prevZeroes;
+
+    if (cell && cell.revealed && !cell.mine) {
+      const patternRes = proto.detectPattern(game.board, cell, cascadeZeroes);
+      if (patternRes.chips > 20) {
+        game.score += patternRes.totalScore;
+        sfx.jackpotFanfare();
+        fx.balatroPopup(patternRes.name, patternRes.chips, patternRes.mult, patternRes.totalScore, patternRes.badge);
+        hud.log(`📐 <b>${patternRes.name}:</b> ${patternRes.chips} Chips × x${patternRes.mult} Mult = +${patternRes.totalScore} PTS!`, 'super');
+        if (game.score >= game.target && !game.cleared) {
+          game.cleared = true;
+          game.emit({ type: 'cleared' });
+        }
+        hud.render();
+      }
+    }
+    return;
+  }
+
+  // --- VANILLA DEFAULT ---
   if (action === 'flag') {
     game.toggleFlag(x, y);
     checkSlotAutoRoll();
@@ -98,12 +192,15 @@ const restart = () => {
   localStorage.removeItem(SAVE_KEY);
   fx.clear();
   game = new Game(STARTER.map(getModule));
+  proto.setGame(game);
+  proto.clearSelection();
   wire(game);
   hud.setGame(game);
   shopView.setGame(game);
   mapView.setGame(game);
   slotMachine.setGame(game);
   view.build(game.board);
+  updateModeUI();
   hud.render();
   shopView.render();
   mapView.render();
@@ -117,6 +214,149 @@ document.getElementById('btn-menu-restart')?.addEventListener('click', () => {
   if (confirm('Начать забег с самого начала? Текущий прогресс будет сброшен.')) {
     restart();
   }
+});
+
+function updateModeUI() {
+  const banner = document.getElementById('proto-mode-banner');
+  const badge = document.getElementById('proto-badge');
+  const desc = document.getElementById('proto-desc');
+  const handBar = document.getElementById('proto-hand-bar');
+
+  const btn1 = document.getElementById('btn-mode-1');
+  const btn2 = document.getElementById('btn-mode-2');
+  const btn3 = document.getElementById('btn-mode-3');
+  const btnVanilla = document.getElementById('btn-mode-vanilla');
+
+  [btn1, btn2, btn3, btnVanilla].forEach((b) => b?.classList.remove('active'));
+
+  if (!banner || !badge || !desc || !handBar) return;
+
+  if (proto.currentMode === 'mode1_chord') {
+    btn1?.classList.add('active');
+    banner.style.display = 'flex';
+    badge.textContent = '🎯 1: ХОРД';
+    desc.textContent = 'Ставьте флаги вокруг цифр и кликайте по цифре (хорд). Хорд вскрывает пачку безопасных клеток и начисляет сочный залп Chips × Mult!';
+    handBar.style.display = 'none';
+  } else if (proto.currentMode === 'mode2_patterns') {
+    btn2?.classList.add('active');
+    banner.style.display = 'flex';
+    badge.textContent = '📐 2: ПАТТЕРНЫ';
+    desc.textContent = 'Ищите классические связки Сапёра: 1-2-1, 1-2-2-1, Оазисы нулей, Угловые тройки и Стены цифр!';
+    handBar.style.display = 'none';
+  } else if (proto.currentMode === 'mode3_claim') {
+    btn3?.classList.add('active');
+    banner.style.display = 'flex';
+    badge.textContent = '🃏 3: СБОР РУКИ';
+    desc.textContent = 'Открывайте поле. Кликайте по уже открытым цифрам (до 5 шт) для сбора комбинации и жмите [СЫГРАТЬ РУКУ]! (Стриты, Сеты, Пары)';
+    handBar.style.display = 'flex';
+    updateHandBar();
+  } else {
+    btnVanilla?.classList.add('active');
+    banner.style.display = 'none';
+    handBar.style.display = 'none';
+  }
+
+  view.setSelectedCells(proto.selectedCells);
+}
+
+function updateHandBar() {
+  const handCardsEl = document.getElementById('proto-hand-cards');
+  const handNameEl = document.getElementById('proto-hand-name');
+  const mathEl = document.getElementById('proto-hand-math');
+  const btnPlay = document.getElementById('btn-play-hand') as HTMLButtonElement | null;
+  const handsLeftEl = document.getElementById('proto-hands-left');
+
+  if (!handCardsEl || !handNameEl || !mathEl || !btnPlay || !handsLeftEl) return;
+
+  handsLeftEl.textContent = `${proto.handsLeft}/${proto.maxHands}`;
+
+  handCardsEl.innerHTML = '';
+  for (let i = 0; i < proto.maxSelected; i++) {
+    const c = proto.selectedCells[i];
+    const slot = document.createElement('span');
+    if (c) {
+      slot.className = 'card-slot filled';
+      slot.textContent = String(c.adjacent);
+    } else {
+      slot.className = 'card-slot empty';
+    }
+    handCardsEl.appendChild(slot);
+  }
+
+  const evalResult = proto.evaluateSelectedHand();
+  handNameEl.textContent = evalResult.name;
+  mathEl.innerHTML = `<span class="chip-pill">${evalResult.chips} Chips</span> × <span class="mult-pill">x${evalResult.mult} Mult</span> = <b id="proto-hand-score">+${evalResult.totalScore} PTS</b>`;
+
+  btnPlay.disabled = proto.selectedCells.length === 0 || proto.handsLeft <= 0;
+}
+
+// Mode switch buttons
+document.getElementById('btn-mode-1')?.addEventListener('click', () => {
+  proto.setMode('mode1_chord');
+  view.build(game.board);
+  updateModeUI();
+  hud.render();
+  sfx.relay();
+  hud.log('── Включен Тестовый Режим 1: Хорд как Рука ──', 'sep');
+  fx.banner(headerEl, 'ТЕСТ РЕЖИМА 1:\nХОРД КАК РУКА', 'rainbow');
+});
+
+document.getElementById('btn-mode-2')?.addEventListener('click', () => {
+  proto.setMode('mode2_patterns');
+  view.build(game.board);
+  updateModeUI();
+  hud.render();
+  sfx.relay();
+  hud.log('── Включен Тестовый Режим 2: Паттерны Сапёра ──', 'sep');
+  fx.banner(headerEl, 'ТЕСТ РЕЖИМА 2:\nПАТТЕРНЫ САПЁРА', 'rainbow');
+});
+
+document.getElementById('btn-mode-3')?.addEventListener('click', () => {
+  proto.setMode('mode3_claim');
+  view.build(game.board);
+  updateModeUI();
+  hud.render();
+  sfx.relay();
+  hud.log('── Включен Тестовый Режим 3: Сбор комбинаций ──', 'sep');
+  fx.banner(headerEl, 'ТЕСТ РЕЖИМА 3:\nСБОР КОМБИНАЦИЙ', 'rainbow');
+});
+
+document.getElementById('btn-mode-vanilla')?.addEventListener('click', () => {
+  proto.setMode('vanilla');
+  view.build(game.board);
+  updateModeUI();
+  hud.render();
+  sfx.click();
+  hud.log('── Включен Классический режим ──', 'sep');
+  fx.banner(headerEl, 'КЛАССИЧЕСКИЙ РЕЖИМ', 'bits');
+});
+
+// Mode 3 Hand buttons
+document.getElementById('btn-play-hand')?.addEventListener('click', () => {
+  if (proto.currentMode !== 'mode3_claim' || proto.selectedCells.length === 0 || proto.handsLeft <= 0) return;
+  const evalResult = proto.evaluateSelectedHand();
+  proto.handsLeft--;
+
+  game.score += evalResult.totalScore;
+  sfx.jackpotFanfare();
+  fx.balatroPopup(evalResult.name, evalResult.chips, evalResult.mult, evalResult.totalScore, evalResult.badge || '🃏');
+  hud.log(`🃏 <b>Сыграна рука [${evalResult.name}]:</b> ${evalResult.chips} Chips × x${evalResult.mult} Mult = +${evalResult.totalScore} PTS!`, 'super');
+
+  if (game.score >= game.target && !game.cleared) {
+    game.cleared = true;
+    game.emit({ type: 'cleared' });
+  }
+
+  proto.clearSelection();
+  view.setSelectedCells([]);
+  updateHandBar();
+  hud.render();
+});
+
+document.getElementById('btn-clear-hand')?.addEventListener('click', () => {
+  proto.clearSelection();
+  view.setSelectedCells([]);
+  updateHandBar();
 });
 
 function cellScreen(x: number, y: number) {
@@ -358,6 +598,7 @@ function wire(g: Game) {
 
 wire(game);
 view.build(game.board);
+updateModeUI();
 hud.render();
 shopView.render();
 mapView.render();

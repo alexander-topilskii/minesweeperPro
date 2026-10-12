@@ -15,6 +15,12 @@
       <div class="menubar" id="menubar">
         <button class="menu-item" id="btn-menu-save" title="Сохранить текущий прогресс в браузере"><u>С</u>охранить</button>
         <button class="menu-item" id="btn-menu-restart" title="Начать забег с самого начала"><u>З</u>аново</button>
+        <span class="menu-separator">|</span>
+        <span class="menu-label">🧪 ТЕСТ:</span>
+        <button class="menu-item menu-mode" id="btn-mode-1" title="Режим 1: Хорд как Рука (Chording Hand)">1: Хорд</button>
+        <button class="menu-item menu-mode" id="btn-mode-2" title="Режим 2: Паттерны Сапёра (1-2-1, 1-2-2-1, углы)">2: Паттерны</button>
+        <button class="menu-item menu-mode" id="btn-mode-3" title="Режим 3: Сбор руки (Сеты, Стриты, Фулл-хаус)">3: Сбор руки</button>
+        <button class="menu-item menu-mode active" id="btn-mode-vanilla" title="Классический стандарт">Обычный</button>
       </div>
 
       <!-- MAIN GAME VIEW -->
@@ -54,9 +60,35 @@
             </button>
           </div>
           <div class="board-stage">
+            <div class="proto-mode-banner bevel-in" id="proto-mode-banner" style="display:none;">
+              <span class="proto-badge" id="proto-badge">🧪 РЕЖИМ 1</span>
+              <span class="proto-desc" id="proto-desc">Ставьте флаги и жмите хорд на цифре для залпа Chips × Mult</span>
+            </div>
             <div class="board-frame bevel-in">
               <div id="board-lights" class="board-lights"></div>
               <div id="board"></div>
+            </div>
+            <!-- Mode 3 Hand Claiming Bar -->
+            <div class="proto-hand-bar bevel-in" id="proto-hand-bar" style="display:none;">
+              <div class="proto-hand-cards" id="proto-hand-cards">
+                <span class="card-slot empty"></span>
+                <span class="card-slot empty"></span>
+                <span class="card-slot empty"></span>
+                <span class="card-slot empty"></span>
+                <span class="card-slot empty"></span>
+              </div>
+              <div class="proto-hand-preview">
+                <div class="proto-hand-name" id="proto-hand-name">ВЫБЕРИТЕ ДО 5 ЦИФР</div>
+                <div class="proto-hand-math" id="proto-hand-math">
+                  <span class="chip-pill">0 Chips</span> × <span class="mult-pill">x0 Mult</span> = <b id="proto-hand-score">0 PTS</b>
+                </div>
+              </div>
+              <div class="proto-hand-actions">
+                <button class="btn-play-hand bevel-out" id="btn-play-hand" disabled>
+                  🃏 СЫГРАТЬ РУКУ (<span id="proto-hands-left">4/4</span>)
+                </button>
+                <button class="btn-clear-hand bevel-out" id="btn-clear-hand">✕ Сброс</button>
+              </div>
             </div>
           </div>
         </section>

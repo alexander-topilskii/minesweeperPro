@@ -131,7 +131,7 @@ export class Game {
     return () => this.listeners.delete(fn);
   }
 
-  private emit(e: GameEvent): void {
+  emit(e: GameEvent): void {
     for (const fn of this.listeners) fn(e);
   }
 

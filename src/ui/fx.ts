@@ -119,4 +119,31 @@ export class Fx {
       this.bannerTimer = undefined;
     }, Math.max(durationMs, 2200));
   }
+
+  /** Displays high-impact Balatro style crescendo card over the board. */
+  balatroPopup(title: string, chips: number, mult: number, total: number, badge = '🃏'): void {
+    const boardStage = document.querySelector('.board-stage') || document.body;
+    // Remove any existing popup first
+    const prev = boardStage.querySelector('.balatro-popup');
+    if (prev) prev.remove();
+
+    const popup = document.createElement('div');
+    popup.className = 'balatro-popup';
+    popup.innerHTML = `
+      <div class="balatro-popup-title">${badge} ${title}</div>
+      <div class="balatro-popup-math">
+        <span class="balatro-popup-chips">${chips} CHIPS</span>
+        <span>×</span>
+        <span class="balatro-popup-mult">${mult} MULT</span>
+      </div>
+      <div class="balatro-popup-total">+${total} PTS</div>
+    `;
+    boardStage.appendChild(popup);
+
+    setTimeout(() => {
+      popup.classList.add('fade-out');
+      setTimeout(() => popup.remove(), 300);
+    }, 1200);
+  }
 }
+
